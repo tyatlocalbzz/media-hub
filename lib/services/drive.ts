@@ -59,6 +59,14 @@ export function getFileType(mimeType: string | null | undefined): 'video' | 'aud
 
 // Initialize OAuth2 client
 function createOAuth2Client(): OAuth2Client {
+  // Validate that Google OAuth credentials are configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error('[Drive Service] Missing Google OAuth credentials')
+    console.error('[Drive Service] GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID)
+    console.error('[Drive Service] GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET)
+    throw new Error('Google OAuth credentials not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.')
+  }
+
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,

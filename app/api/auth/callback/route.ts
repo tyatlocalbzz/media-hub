@@ -48,6 +48,14 @@ export async function GET(request: Request) {
       const callbackUrl = `${origin}/api/auth/callback`
       console.log('[OAuth] Using callback URL:', callbackUrl)
 
+      // Validate that Google OAuth credentials are configured
+      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        console.error('[OAuth Callback] Missing Google OAuth credentials')
+        console.error('[OAuth Callback] GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID)
+        console.error('[OAuth Callback] GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET)
+        throw new Error('Google OAuth credentials not configured')
+      }
+
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
