@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { config } from '@/lib/config'
 import { requireAuthWithDrive } from '@/lib/middleware/auth'
 import prisma from '@/lib/prisma'
-import crypto from 'crypto'
 
 // This endpoint creates an upload session and returns credentials for client-side upload
 export async function POST(request: NextRequest) {
@@ -16,7 +15,22 @@ export async function POST(request: NextRequest) {
       return authResult.response
     }
 
+    // TypeScript needs explicit type check
+    if (!('driveConfig' in authResult) || !('oauth2Client' in authResult)) {
+      return NextResponse.json(
+        { error: 'Drive configuration error' },
+        { status: 500 }
+      )
+    }
+
     const { user, driveConfig, oauth2Client } = authResult
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      )
+    }
 
     // Get file metadata from request
     const body = await request.json()
@@ -190,7 +204,22 @@ export async function GET(request: NextRequest) {
       return authResult.response
     }
 
+    // TypeScript needs explicit type check
+    if (!('oauth2Client' in authResult)) {
+      return NextResponse.json(
+        { error: 'Drive configuration error' },
+        { status: 500 }
+      )
+    }
+
     const { oauth2Client } = authResult
+
+    if (!oauth2Client) {
+      return NextResponse.json(
+        { error: 'OAuth client error' },
+        { status: 500 }
+      )
+    }
 
     // Get access token
     const { token } = await oauth2Client.getAccessToken()

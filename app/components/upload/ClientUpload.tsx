@@ -168,7 +168,7 @@ export default function ClientUpload({ file, onUploadComplete, onError }: Client
               'X-Original-Content-Type': file.type || 'application/octet-stream'
             },
             body: chunk,
-            signal: abortControllerRef.current.signal
+            signal: abortControllerRef.current?.signal
           });
 
           if (!response.ok && response.status >= 500) {

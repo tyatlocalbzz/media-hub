@@ -73,7 +73,8 @@ export async function dedupedFetch<T>(
  */
 function cleanupExpiredEntries() {
   const now = Date.now()
-  for (const [key, entry] of requestCache.entries()) {
+  const entries = Array.from(requestCache.entries())
+  for (const [key, entry] of entries) {
     if (now - entry.timestamp > 30000) { // Clean up entries older than 30 seconds
       requestCache.delete(key)
     }

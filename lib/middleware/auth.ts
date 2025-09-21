@@ -114,7 +114,7 @@ export async function requireAuthWithDrive(request: NextRequest) {
   }
 
   // Get Drive config
-  const driveConfig = await getUserDriveConfig(authResult.user.id)
+  const driveConfig = await getUserDriveConfig(authResult.user!.id)
   if (!driveConfig) {
     return {
       success: false,
@@ -150,7 +150,7 @@ export async function requireAuthWithDrive(request: NextRequest) {
 
   return {
     success: true,
-    user: authResult.user,
+    user: authResult.user!,
     driveConfig,
     oauth2Client
   }

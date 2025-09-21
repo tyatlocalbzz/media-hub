@@ -5,8 +5,7 @@ import prisma from '@/lib/prisma'
 import { config } from '@/lib/config'
 import { requireAuthWithDrive } from '@/lib/middleware/auth'
 import { createLogger } from '@/lib/logger'
-import { handleApiError, ValidationError, validateMimeType, validateFileSize } from '@/lib/errors'
-import { serializeBigInt } from '@/lib/utils'
+import { ValidationError, validateMimeType, validateFileSize } from '@/lib/errors'
 
 const logger = createLogger('UPLOAD')
 
@@ -23,7 +22,23 @@ export async function POST(request: NextRequest) {
       return authResult.response
     }
 
+    // TypeScript needs explicit type check
+    if (!('driveConfig' in authResult) || !('oauth2Client' in authResult)) {
+      return NextResponse.json(
+        { error: 'Drive configuration error' },
+        { status: 500 }
+      )
+    }
+
     const { user, driveConfig, oauth2Client } = authResult
+
+    if (!user || !driveConfig || !oauth2Client) {
+      return NextResponse.json(
+        { error: 'Configuration error' },
+        { status: 500 }
+      )
+    }
+
     logger.info('User authenticated', { userId: user.id })
     logger.debug('Drive configured', { folderId: driveConfig.incomingFolderId })
 
@@ -49,7 +64,7 @@ export async function POST(request: NextRequest) {
 
 
     // Setup Drive client (oauth2Client already created above)
-    const drive = google.drive({ version: 'v3', auth: oauth2Client })
+    google.drive({ version: 'v3', auth: oauth2Client })
 
     // Always use resumable upload for reliability (works for any file size)
     // This avoids the 500 errors we're seeing with multipart uploads
@@ -138,17 +153,18 @@ export async function POST(request: NextRequest) {
 
       // Format response to match drive.files.create response
       response = { data: uploadedFile }
-    } catch (uploadError: any) {
+    } catch (uploadError) {
       console.error('[UPLOAD] Drive upload failed:', uploadError)
 
       // Check if it's a timeout or size issue
-      if (uploadError.code === 'ETIMEDOUT' || uploadError.code === 'ECONNRESET' ||
-          uploadError.message?.includes('timeout') || uploadError.code === 500 ||
-          uploadError.message?.includes('failed')) {
+      const errorObj = uploadError as any
+      if (errorObj.code === 'ETIMEDOUT' || errorObj.code === 'ECONNRESET' ||
+          errorObj.message?.includes('timeout') || errorObj.code === 500 ||
+          errorObj.message?.includes('failed')) {
         return NextResponse.json({
           error: 'Upload failed',
           suggestion: 'The file may be too large or the connection timed out. Try a smaller file or check your internet connection.',
-          details: uploadError.message
+          details: errorObj.message
         }, { status: 413 })
       }
 
@@ -188,25 +204,27 @@ export async function POST(request: NextRequest) {
       message: `Successfully uploaded ${file.name} to your Drive`
     })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('[UPLOAD] Error occurred:', error)
     console.error('[UPLOAD] Error stack:', error instanceof Error ? error.stack : 'No stack')
 
+    const errorObj = error as any
+
     // Log Google API specific error details
-    if (error.response) {
+    if (errorObj.response) {
       console.error('[UPLOAD] Google API Response:', {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data
+        status: errorObj.response.status,
+        statusText: errorObj.response.statusText,
+        data: errorObj.response.data
       })
     }
 
     // Additional error details for OAuth/Gaxios errors
-    if (error.code || error.errors) {
+    if (errorObj.code || errorObj.errors) {
       console.error('[UPLOAD] Error details:', {
-        code: error.code,
-        errors: error.errors,
-        name: error.name
+        code: errorObj.code,
+        errors: errorObj.errors,
+        name: errorObj.name
       })
     }
 

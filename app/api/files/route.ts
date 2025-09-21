@@ -17,6 +17,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { user } = authResult
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      )
+    }
+
     logger.debug('Fetching files for user', { userId: user.id })
 
     // Get query parameters
@@ -25,7 +33,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') as 'NEW' | 'TRANSCRIBING' | 'READY' | null
 
     // Build query
-    const where: any = {
+    const where: Record<string, any> = {
       userId: user.id
     }
 
@@ -87,6 +95,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { user } = authResult
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 401 }
+      )
+    }
 
     // Get file ID from request body
     const body = await request.json()

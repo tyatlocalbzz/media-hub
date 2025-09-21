@@ -25,7 +25,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log to debug logger for AI analysis
-    captureReactError(error, errorInfo)
+    captureReactError(error, {
+      componentStack: errorInfo.componentStack ?? undefined
+    })
 
     // Also log to console in development
     if (process.env.NODE_ENV === 'development') {

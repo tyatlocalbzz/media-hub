@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {
 
     const { user } = authResult;
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 401 }
+      )
+    }
     // Get user data from database
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },

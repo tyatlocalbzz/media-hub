@@ -15,6 +15,12 @@ export async function POST(request: NextRequest) {
 
     const { user } = authResult
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 401 }
+      )
+    }
     // Parse request body
     const body = await request.json()
     const {
@@ -136,6 +142,12 @@ export async function GET(request: NextRequest) {
 
     const { user } = authResult
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 401 }
+      )
+    }
     // Check if file exists
     const file = await prisma.file.findFirst({
       where: {

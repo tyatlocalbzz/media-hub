@@ -1,7 +1,6 @@
 // Google Drive API service for Media Hub
 import { google } from 'googleapis'
 import { OAuth2Client } from 'google-auth-library'
-import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { config } from '@/lib/config'
 

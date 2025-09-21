@@ -165,7 +165,7 @@ class DebugLogger {
     }
   }
 
-  private addLog(
+  addLog(
     type: LogEntry['type'],
     message: string,
     stack?: string,
@@ -344,7 +344,7 @@ export const debugLogger = (() => {
     exportForAI: () => '',
     addReactError: () => {},
     addLog: () => {}
-  } as DebugLogger
+  } as unknown as DebugLogger
 })()
 
 // Export for use in components

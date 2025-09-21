@@ -18,7 +18,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { user } = authResult
-    logger.info('User authenticated', { userId: user.id })
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 401 }
+      )
+    }    logger.info('User authenticated', { userId: user.id })
 
     // Create sync log entry
     const syncLog = await prisma.syncLog.create({
@@ -200,6 +206,12 @@ export async function GET(request: NextRequest) {
 
     const { user } = authResult
 
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 401 }
+      )
+    }
     // Get last sync log
     const lastSync = await prisma.syncLog.findFirst({
       where: { userId: user.id },
