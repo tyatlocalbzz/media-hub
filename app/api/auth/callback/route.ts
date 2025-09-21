@@ -44,10 +44,14 @@ export async function GET(request: Request) {
 
   if (!driveFolderId && providerToken) {
     try {
+      // Use the actual request origin for OAuth callback
+      const callbackUrl = `${origin}/api/auth/callback`
+      console.log('[OAuth] Using callback URL:', callbackUrl)
+
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
-        `${origin}/api/auth/callback`
+        callbackUrl
       )
 
       oauth2Client.setCredentials({

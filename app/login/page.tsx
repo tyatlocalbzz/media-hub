@@ -15,10 +15,14 @@ export default function LoginPage() {
 
     const supabase = createClient()
 
+    // Use the actual window origin for redirect
+    const redirectUrl = `${window.location.origin}/api/auth/callback`
+    console.log('[Auth] Redirecting to:', redirectUrl)
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback`,
+        redirectTo: redirectUrl,
         scopes: 'https://www.googleapis.com/auth/drive.file',
         queryParams: {
           access_type: 'offline',
