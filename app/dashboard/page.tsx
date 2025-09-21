@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -7,7 +8,20 @@ import { QuickOnboarding } from '@/app/components/QuickOnboarding'
 import { MindfulMoment } from '@/app/components/MindfulMoment'
 import { SmartFileUpload } from '@/app/components/upload'
 
-export default function Dashboard() {
+// Loading component for Suspense fallback
+function DashboardLoading() {
+  return (
+    <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100 mx-auto"></div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main dashboard content that uses useSearchParams
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -236,4 +250,13 @@ export default function Dashboard() {
       </div>
     </>
   );
+}
+
+// Main export wrapped in Suspense
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DashboardContent />
+    </Suspense>
+  )
 }
