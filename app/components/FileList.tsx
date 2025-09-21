@@ -157,9 +157,9 @@ export function FileList({ files, onDelete, onProcess, loading }: FileListProps)
               {onDelete && (
                 <button
                   onClick={() => onDelete(file.id)}
-                  className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors flex items-center gap-1"
                 >
-                  Remove
+                  🗑️ Delete
                 </button>
               )}
             </div>

@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/middleware/auth'
 import prisma from '@/lib/prisma'
 import { createLogger } from '@/lib/logger'
 import { serializeBigInt } from '@/lib/utils'
+import { deleteFileFromDrive } from '@/lib/services/drive'
 
 const logger = createLogger('FILES')
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// DELETE endpoint to remove a file from tracking
+// DELETE endpoint to permanently delete a file from Google Drive and database
 export async function DELETE(request: NextRequest) {
   try {
     // Check authentication
@@ -98,31 +99,60 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    logger.info(`Deleting file ${fileId} for user ${user.id}`)
+    logger.info(`Permanently deleting file ${fileId} for user ${user.id}`)
 
-    // Soft delete the file
-    const file = await prisma.file.updateMany({
+    // First, get the file details including the Drive file ID
+    const file = await prisma.file.findFirst({
       where: {
         id: fileId,
         userId: user.id
       },
-      data: {
-        isDeleted: true
+      select: {
+        id: true,
+        driveFileId: true,
+        name: true
       }
     })
 
-    if (file.count === 0) {
+    if (!file) {
       return NextResponse.json(
         { error: 'File not found' },
         { status: 404 }
       )
     }
 
-    logger.info(`File ${fileId} marked as deleted`)
+    // Delete from Google Drive first
+    if (file.driveFileId) {
+      logger.info(`Deleting file ${file.name} from Google Drive (${file.driveFileId})`)
+
+      const driveResult = await deleteFileFromDrive(user.id, file.driveFileId)
+
+      if (!driveResult.success) {
+        logger.error(`Failed to delete file from Google Drive: ${driveResult.error}`)
+        return NextResponse.json(
+          {
+            error: 'Failed to delete file from Google Drive',
+            details: driveResult.error
+          },
+          { status: 500 }
+        )
+      }
+
+      logger.info(`Successfully deleted file from Google Drive`)
+    }
+
+    // Now permanently delete from database
+    await prisma.file.delete({
+      where: {
+        id: fileId
+      }
+    })
+
+    logger.info(`File ${fileId} permanently deleted from database`)
 
     return NextResponse.json({
       success: true,
-      message: 'File removed from tracking'
+      message: 'File permanently deleted from Google Drive and database'
     })
 
   } catch (error) {

@@ -144,7 +144,7 @@ export default function FilesPage() {
 
   // Delete file
   const handleDeleteFile = useCallback(async (fileId: string) => {
-    if (!confirm('Are you sure you want to remove this file from tracking?')) {
+    if (!confirm('⚠️ WARNING: This will PERMANENTLY DELETE this file from Google Drive and cannot be undone. Are you sure?')) {
       return;
     }
 

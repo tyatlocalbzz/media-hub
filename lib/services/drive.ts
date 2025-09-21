@@ -68,7 +68,7 @@ function createOAuth2Client(): OAuth2Client {
 }
 
 // Get authenticated Drive client for user
-async function getDriveClient(userId: string) {
+export async function getDriveClient(userId: string) {
   const oauth2Client = createOAuth2Client()
 
   // Get user's refresh token from database
@@ -197,6 +197,47 @@ export async function testDriveConnection(userId: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to connect to Drive'
+    }
+  }
+}
+
+// Permanently delete a file from Google Drive
+export async function deleteFileFromDrive(userId: string, driveFileId: string) {
+  try {
+    const { drive } = await getDriveClient(userId)
+
+    // Permanently delete the file from Google Drive
+    await drive.files.delete({
+      fileId: driveFileId
+    })
+
+    return {
+      success: true,
+      message: 'File permanently deleted from Google Drive'
+    }
+
+  } catch (error) {
+    console.error('Error deleting file from Drive:', error)
+
+    // Check for specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('File not found')) {
+        return {
+          success: false,
+          error: 'File not found in Google Drive'
+        }
+      }
+      if (error.message.includes('Insufficient permissions')) {
+        return {
+          success: false,
+          error: 'Insufficient permissions to delete this file'
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete file from Drive'
     }
   }
 }
