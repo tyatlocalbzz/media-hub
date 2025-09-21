@@ -1,5 +1,12 @@
 // Configuration for Media Hub services
 
+// Import and run environment check (server-side only)
+if (typeof window === 'undefined') {
+  import('./config/env-check').then(({ checkEnvironmentVariables }) => {
+    checkEnvironmentVariables()
+  })
+}
+
 export const config = {
   // Google Drive settings
   drive: {

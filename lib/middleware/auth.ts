@@ -79,6 +79,14 @@ export async function getUserDriveConfig(userId: string) {
  * Create Google OAuth2 client with user's refresh token
  */
 export async function createOAuth2Client(refreshToken: string) {
+  // Validate that Google OAuth credentials are configured
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error('[OAuth] Missing Google OAuth credentials in environment variables')
+    console.error('[OAuth] GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID)
+    console.error('[OAuth] GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET)
+    throw new Error('Google OAuth credentials not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.')
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -93,11 +101,19 @@ export async function createOAuth2Client(refreshToken: string) {
   try {
     const { token } = await oauth2Client.getAccessToken()
     if (!token) {
+      console.error('[OAuth] Failed to get access token - token is null')
       return null
     }
     return oauth2Client
   } catch (error) {
-    console.error('Failed to refresh access token:', error)
+    console.error('[OAuth] Failed to refresh access token:', error)
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error('[OAuth] Error message:', error.message)
+      if ('response' in error) {
+        console.error('[OAuth] Error response:', (error as any).response?.data)
+      }
+    }
     return null
   }
 }
@@ -137,13 +153,29 @@ export async function requireAuthWithDrive(request: NextRequest) {
   }
 
   // Create OAuth client
-  const oauth2Client = await createOAuth2Client(driveConfig.refreshToken)
-  if (!oauth2Client) {
+  let oauth2Client
+  try {
+    oauth2Client = await createOAuth2Client(driveConfig.refreshToken)
+    if (!oauth2Client) {
+      return {
+        success: false,
+        response: NextResponse.json(
+          { error: 'Authentication expired. Please sign in again.' },
+          { status: 401 }
+        )
+      }
+    }
+  } catch (error) {
+    console.error('[Auth] OAuth client creation failed:', error)
     return {
       success: false,
       response: NextResponse.json(
-        { error: 'Authentication expired. Please sign in again.' },
-        { status: 401 }
+        {
+          error: 'OAuth configuration error',
+          details: error instanceof Error ? error.message : 'Failed to create OAuth client',
+          help: 'Please ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are configured in environment variables.'
+        },
+        { status: 500 }
       )
     }
   }
