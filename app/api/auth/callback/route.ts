@@ -56,11 +56,19 @@ export async function GET(request: Request) {
         throw new Error('Google OAuth credentials not configured')
       }
 
+      // Store credentials in variables to ensure they're captured
+      const clientId = process.env.GOOGLE_CLIENT_ID
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+
       const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
+        clientId,
+        clientSecret,
         callbackUrl
       )
+
+      // Ensure credentials are properly set on the client
+      ;(oauth2Client as any)._clientId = clientId
+      ;(oauth2Client as any)._clientSecret = clientSecret
 
       oauth2Client.setCredentials({
         access_token: providerToken,

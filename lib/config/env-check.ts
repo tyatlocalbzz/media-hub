@@ -8,7 +8,6 @@ export function checkEnvironmentVariables() {
     // Supabase
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
     // Google OAuth
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
@@ -16,6 +15,11 @@ export function checkEnvironmentVariables() {
 
     // Database
     DATABASE_URL: process.env.DATABASE_URL,
+  }
+
+  // Optional environment variables
+  const optional = {
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   }
 
   const missing = []

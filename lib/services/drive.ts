@@ -67,11 +67,27 @@ function createOAuth2Client(): OAuth2Client {
     throw new Error('Google OAuth credentials not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.')
   }
 
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+  // Store credentials in variables to ensure they're captured
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+
+  const oauth2Client = new google.auth.OAuth2(
+    clientId,
+    clientSecret,
     `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback`
   )
+
+  // Ensure credentials are properly set on the client (force them to be available for refresh)
+  ;(oauth2Client as any)._clientId = clientId
+  ;(oauth2Client as any)._clientSecret = clientSecret
+
+  console.log('[Drive Service] Creating client with credentials:', {
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    clientIdPrefix: clientId?.substring(0, 10)
+  })
+
+  return oauth2Client
 }
 
 // Get authenticated Drive client for user
