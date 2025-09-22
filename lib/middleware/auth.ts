@@ -152,24 +152,56 @@ export async function createOAuth2Client(refreshToken: string) {
     refresh_token: refreshToken
   })
 
-  // Verify the token works
+  // Verify the token works - first try normal method, then fallback to manual
   try {
     const { token } = await oauth2Client.getAccessToken()
     if (!token) {
       console.error('[OAuth] Failed to get access token - token is null')
       return null
     }
+    console.log('[OAuth] Successfully got access token via normal method')
     return oauth2Client
   } catch (error) {
-    console.error('[OAuth] Failed to refresh access token:', error)
-    // Log more details about the error
-    if (error instanceof Error) {
-      console.error('[OAuth] Error message:', error.message)
-      if ('response' in error) {
-        console.error('[OAuth] Error response:', (error as any).response?.data)
+    console.error('[OAuth] Normal refresh failed, attempting manual refresh...')
+    console.error('[OAuth] Error:', error instanceof Error ? error.message : 'Unknown error')
+
+    // Manual refresh token fallback
+    try {
+      console.log('[OAuth] Attempting manual token refresh with explicit credentials')
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          refresh_token: refreshToken,
+          client_id: clientId!,
+          client_secret: clientSecret!,
+          grant_type: 'refresh_token'
+        }).toString()
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error('[OAuth] Manual refresh failed:', data)
+        return null
       }
+
+      console.log('[OAuth] Manual refresh successful! Setting new tokens...')
+
+      // Update the OAuth2 client with new tokens
+      oauth2Client.setCredentials({
+        access_token: data.access_token,
+        refresh_token: refreshToken,
+        expiry_date: new Date().getTime() + (data.expires_in * 1000)
+      })
+
+      return oauth2Client
+    } catch (manualError) {
+      console.error('[OAuth] Manual refresh also failed:', manualError)
+      return null
     }
-    return null
   }
 }
 
