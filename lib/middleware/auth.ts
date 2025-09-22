@@ -3,6 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import prisma from '@/lib/prisma'
 import { google } from 'googleapis'
 
+// Immediate module-level logging to verify env vars are loaded
+console.log('[AUTH MODULE LOAD] Environment check at module initialization:', {
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 10)}...` : 'UNDEFINED',
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'DEFINED' : 'UNDEFINED',
+  NODE_ENV: process.env.NODE_ENV,
+  VERCEL: process.env.VERCEL,
+  timestamp: new Date().toISOString()
+})
+
 export interface AuthenticatedUser {
   id: string
   email: string
@@ -79,17 +88,35 @@ export async function getUserDriveConfig(userId: string) {
  * Create Google OAuth2 client with user's refresh token
  */
 export async function createOAuth2Client(refreshToken: string) {
-  // Validate that Google OAuth credentials are configured
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    console.error('[OAuth] Missing Google OAuth credentials in environment variables')
-    console.error('[OAuth] GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID)
-    console.error('[OAuth] GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET)
+  console.log('[OAuth] createOAuth2Client called at:', new Date().toISOString())
+
+  // Store credentials in variables to ensure they're captured
+  let clientId = process.env.GOOGLE_CLIENT_ID
+  let clientSecret = process.env.GOOGLE_CLIENT_SECRET
+
+  // Emergency fallback - if env vars are undefined, try to re-read them
+  if (!clientId || !clientSecret) {
+    console.error('[OAuth] Environment variables missing on first read, attempting fallback...')
+    // Force a fresh read of environment variables
+    const env = process.env
+    clientId = env.GOOGLE_CLIENT_ID
+    clientSecret = env.GOOGLE_CLIENT_SECRET
+
+    console.log('[OAuth] Fallback attempt result:', {
+      clientId: clientId ? 'FOUND' : 'STILL UNDEFINED',
+      clientSecret: clientSecret ? 'FOUND' : 'STILL UNDEFINED',
+      allEnvKeys: Object.keys(env).filter(k => k.includes('GOOGLE')).join(', ')
+    })
+  }
+
+  // Final validation
+  if (!clientId || !clientSecret) {
+    console.error('[OAuth] CRITICAL: Google OAuth credentials are undefined')
+    console.error('[OAuth] Available env vars containing GOOGLE:',
+      Object.keys(process.env).filter(k => k.includes('GOOGLE')))
     throw new Error('Google OAuth credentials not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to environment variables.')
   }
 
-  // Store credentials in variables to ensure they're captured
-  const clientId = process.env.GOOGLE_CLIENT_ID
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback`
 
   // Log actual credential values (masked) for debugging
@@ -107,6 +134,18 @@ export async function createOAuth2Client(refreshToken: string) {
   )
 
   console.log('[OAuth] OAuth2 client created successfully')
+
+  // Force set the internal client credentials to ensure they're available
+  ;(oauth2Client as any)._clientId = clientId
+  ;(oauth2Client as any)._clientSecret = clientSecret
+
+  // Also try setting them via the options property
+  if ((oauth2Client as any).opts) {
+    (oauth2Client as any).opts.clientId = clientId
+    ;(oauth2Client as any).opts.clientSecret = clientSecret
+  }
+
+  console.log('[OAuth] Forced credential setting complete')
 
   // Set only the refresh token
   oauth2Client.setCredentials({
