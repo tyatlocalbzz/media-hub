@@ -70,16 +70,14 @@ function createOAuth2Client(): OAuth2Client {
   // Store credentials in variables to ensure they're captured
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback`
 
-  const oauth2Client = new google.auth.OAuth2(
-    clientId,
-    clientSecret,
-    `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback`
-  )
-
-  // Ensure credentials are properly set on the client (force them to be available for refresh)
-  ;(oauth2Client as any)._clientId = clientId
-  ;(oauth2Client as any)._clientSecret = clientSecret
+  // Use object format for OAuth2Client initialization (recommended by Google)
+  const oauth2Client = new google.auth.OAuth2({
+    clientId: clientId,
+    clientSecret: clientSecret,
+    redirectUri: redirectUri
+  } as any)
 
   console.log('[Drive Service] Creating client with credentials:', {
     hasClientId: !!clientId,
@@ -108,10 +106,13 @@ export async function getDriveClient(userId: string) {
     throw new Error('No refresh token found for user')
   }
 
-  // Set credentials
+  // Set credentials including client info to ensure they're present during refresh
   oauth2Client.setCredentials({
-    refresh_token: user.refresh_token
-  })
+    refresh_token: user.refresh_token,
+    // Explicitly include client credentials for refresh requests
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET
+  } as any)
 
   // Create Drive client
   const drive = google.drive({ version: 'v3', auth: oauth2Client })

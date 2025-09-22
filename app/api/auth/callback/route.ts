@@ -60,20 +60,21 @@ export async function GET(request: Request) {
       const clientId = process.env.GOOGLE_CLIENT_ID
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET
 
-      const oauth2Client = new google.auth.OAuth2(
-        clientId,
-        clientSecret,
-        callbackUrl
-      )
+      // Use object format for OAuth2Client initialization (recommended by Google)
+      const oauth2Client = new google.auth.OAuth2({
+        clientId: clientId,
+        clientSecret: clientSecret,
+        redirectUri: callbackUrl
+      } as any)
 
-      // Ensure credentials are properly set on the client
-      ;(oauth2Client as any)._clientId = clientId
-      ;(oauth2Client as any)._clientSecret = clientSecret
-
+      // Set credentials including client info to ensure they're present during refresh
       oauth2Client.setCredentials({
         access_token: providerToken,
         refresh_token: providerRefreshToken,
-      })
+        // Explicitly include client credentials for refresh requests
+        client_id: clientId,
+        client_secret: clientSecret
+      } as any)
 
       const drive = google.drive({ version: 'v3', auth: oauth2Client })
 
