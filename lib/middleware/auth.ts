@@ -92,26 +92,26 @@ export async function createOAuth2Client(refreshToken: string) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/callback`
 
-  // Use object format for OAuth2Client initialization (recommended by Google)
-  const oauth2Client = new google.auth.OAuth2({
-    clientId: clientId,
-    clientSecret: clientSecret,
+  // Log actual credential values (masked) for debugging
+  console.log('[OAuth] Environment variables check:', {
+    GOOGLE_CLIENT_ID: clientId ? `${clientId.substring(0, 10)}...${clientId.substring(clientId.length - 4)}` : 'UNDEFINED',
+    GOOGLE_CLIENT_SECRET: clientSecret ? `${clientSecret.substring(0, 6)}...` : 'UNDEFINED',
     redirectUri: redirectUri
-  } as any)
-
-  console.log('[OAuth] Creating client with credentials:', {
-    hasClientId: !!clientId,
-    hasClientSecret: !!clientSecret,
-    clientIdPrefix: clientId?.substring(0, 10)
   })
 
-  // Set credentials including client info to ensure they're present during refresh
+  // Use positional arguments for OAuth2 constructor (works with googleapis v160)
+  const oauth2Client = new google.auth.OAuth2(
+    clientId,
+    clientSecret,
+    redirectUri
+  )
+
+  console.log('[OAuth] OAuth2 client created successfully')
+
+  // Set only the refresh token
   oauth2Client.setCredentials({
-    refresh_token: refreshToken,
-    // Explicitly include client credentials for refresh requests
-    client_id: clientId,
-    client_secret: clientSecret
-  } as any)
+    refresh_token: refreshToken
+  })
 
   // Verify the token works
   try {
