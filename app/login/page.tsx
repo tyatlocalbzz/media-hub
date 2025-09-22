@@ -1,11 +1,9 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,11 +21,7 @@ export default function LoginPage() {
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
-        scopes: 'https://www.googleapis.com/auth/drive.file',
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+        // No Drive scopes needed - we use service account
       },
     })
 

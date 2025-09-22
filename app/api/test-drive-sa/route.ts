@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { testDriveConnection } from '@/lib/services/drive-service-account'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     console.log('[TEST] Testing Drive Service Account connection...')
 

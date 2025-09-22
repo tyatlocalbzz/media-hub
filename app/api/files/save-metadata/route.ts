@@ -1,7 +1,7 @@
 // Save file metadata after successful client-side upload to Google Drive
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireAuth } from '@/lib/middleware/auth'
+import { requireAuth } from '@/lib/middleware/auth-service-account'
 
 export async function POST(request: NextRequest) {
   console.log('[SAVE-METADATA] Saving file metadata to database')

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { google } from 'googleapis'
+import prisma from '@/lib/prisma'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -21,117 +21,32 @@ export async function GET(request: Request) {
 
   const userId = sessionData.user.id
   const email = sessionData.user.email
-  const providerToken = sessionData.session?.provider_token
-  const providerRefreshToken = sessionData.session?.provider_refresh_token
 
-  // Log token presence for debugging OAuth issues
-  console.log('[OAuth] Tokens received from Supabase:', {
-    userId,
-    hasAccessToken: !!providerToken,
-    hasRefreshToken: !!providerRefreshToken,
-    tokenLength: providerToken?.length,
-    refreshLength: providerRefreshToken?.length
-  })
-
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('drive_folder_id, created_at')
-    .eq('id', userId)
-    .single()
-
-  let driveFolderId = existingUser?.drive_folder_id
-  let isNewUser = false
-
-  if (!driveFolderId && providerToken) {
-    try {
-      // Use the actual request origin for OAuth callback
-      const callbackUrl = `${origin}/api/auth/callback`
-      console.log('[OAuth] Using callback URL:', callbackUrl)
-
-      // Validate that Google OAuth credentials are configured
-      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-        console.error('[OAuth Callback] Missing Google OAuth credentials')
-        console.error('[OAuth Callback] GOOGLE_CLIENT_ID exists:', !!process.env.GOOGLE_CLIENT_ID)
-        console.error('[OAuth Callback] GOOGLE_CLIENT_SECRET exists:', !!process.env.GOOGLE_CLIENT_SECRET)
-        throw new Error('Google OAuth credentials not configured')
+  // Ensure user exists in our database
+  try {
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: { email: email || '' },
+      create: {
+        id: userId,
+        email: email || ''
       }
-
-      // Store credentials in variables to ensure they're captured
-      const clientId = process.env.GOOGLE_CLIENT_ID
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-
-      // Log actual credential values (masked) for debugging
-      console.log('[OAuth Callback] Environment variables check:', {
-        GOOGLE_CLIENT_ID: clientId ? `${clientId.substring(0, 10)}...${clientId.substring(clientId.length - 4)}` : 'UNDEFINED',
-        GOOGLE_CLIENT_SECRET: clientSecret ? `${clientSecret.substring(0, 6)}...` : 'UNDEFINED',
-        callbackUrl: callbackUrl
-      })
-
-      // Use positional arguments for OAuth2 constructor (works with googleapis v160)
-      const oauth2Client = new google.auth.OAuth2(
-        clientId,
-        clientSecret,
-        callbackUrl
-      )
-
-      console.log('[OAuth Callback] OAuth2 client created successfully')
-
-      // Set the tokens
-      oauth2Client.setCredentials({
-        access_token: providerToken,
-        refresh_token: providerRefreshToken
-      })
-
-      const drive = google.drive({ version: 'v3', auth: oauth2Client })
-
-      const mediaHubFolder = await drive.files.create({
-        requestBody: {
-          name: 'Media Hub',
-          mimeType: 'application/vnd.google-apps.folder',
-        },
-        fields: 'id',
-      })
-
-      if (mediaHubFolder.data.id) {
-        driveFolderId = mediaHubFolder.data.id
-
-        const incomingFolder = await drive.files.create({
-          requestBody: {
-            name: 'Incoming',
-            mimeType: 'application/vnd.google-apps.folder',
-            parents: [driveFolderId],
-          },
-          fields: 'id',
-        })
-
-        const { error: updateError } = await supabase
-          .from('users')
-          .upsert({
-            id: userId,
-            email: email,
-            drive_folder_id: driveFolderId,
-            incoming_folder_id: incomingFolder.data.id,
-            refresh_token: providerRefreshToken,
-            created_at: new Date().toISOString(),
-          })
-
-        if (updateError) {
-          console.error('Error saving user data:', updateError)
-        } else {
-          isNewUser = true
-        }
-      }
-    } catch (error) {
-      console.error('Error creating Drive folders:', error)
-    }
-  } else if (existingUser?.created_at) {
-    // Check if user was created recently
-    isNewUser = new Date(existingUser.created_at).getTime() > Date.now() - 10000
+    })
+  } catch (error) {
+    console.error('Error creating/updating user:', error)
   }
 
-  // Add onboarding parameter for new users with folders
-  if (isNewUser && driveFolderId) {
-    return NextResponse.redirect(`${origin}/dashboard?onboarding=true&folder=${driveFolderId}`)
+  // Check if this is a new user (created in the last 10 seconds)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { created_at: true }
+  })
+
+  const isNewUser = user?.created_at &&
+    new Date(user.created_at).getTime() > Date.now() - 10000
+
+  if (isNewUser) {
+    return NextResponse.redirect(`${origin}/dashboard?onboarding=true`)
   }
 
   return NextResponse.redirect(`${origin}/dashboard`)

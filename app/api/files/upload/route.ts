@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { config } from '@/lib/config'
 import { requireAuth } from '@/lib/middleware/auth-service-account'
-import { uploadFile, getDriveClient } from '@/lib/services/drive-service-account'
+import { uploadFile } from '@/lib/services/drive-service-account'
 import { createLogger } from '@/lib/logger'
 import { validateMimeType, validateFileSize } from '@/lib/errors'
 
-const logger = createLogger('UPLOAD-SA')
+const logger = createLogger('UPLOAD')
 
 // Increase timeout for large file uploads
 export const maxDuration = 60 // 60 seconds timeout
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
 
     // Validate file
     try {
-      validateMimeType(file.type)
-      validateFileSize(file.size)
+      validateMimeType(file.type, config.drive.supportedMimeTypes)
+      validateFileSize(file.size, config.drive.maxFileSize)
     } catch (validationError: any) {
       logger.warn('File validation failed', { error: validationError.message })
       return NextResponse.json(

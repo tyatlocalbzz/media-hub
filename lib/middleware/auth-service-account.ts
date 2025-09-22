@@ -11,7 +11,7 @@ export interface AuthenticatedUser {
  * Simplified authentication middleware for service account architecture
  * Only validates user authentication, no Drive OAuth needed
  */
-export async function requireAuth(request: NextRequest) {
+export async function requireAuth(_request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
