@@ -29,7 +29,6 @@ function DashboardContent() {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showMindfulMoment, setShowMindfulMoment] = useState(false)
-  const [driveFolderId, setDriveFolderId] = useState<string | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
   const [alwaysShowMindful, setAlwaysShowMindful] = useState(false)
 
@@ -37,10 +36,6 @@ function DashboardContent() {
     // Check for onboarding parameter
     if (searchParams.get('onboarding') === 'true') {
       setShowOnboarding(true)
-      const folderId = searchParams.get('folder')
-      if (folderId) {
-        setDriveFolderId(folderId)
-      }
     }
 
     // Load localStorage preference after mounting
@@ -59,13 +54,9 @@ function DashboardContent() {
       if (user) {
         const { data: userData } = await supabase
           .from('users')
-          .select('drive_folder_id, created_at, email')
+          .select('created_at, email')
           .eq('id', user.id)
           .single()
-
-        if (userData?.drive_folder_id) {
-          setDriveFolderId(userData.drive_folder_id)
-        }
 
         // Set user name from email
         if (userData?.email) {
@@ -73,11 +64,10 @@ function DashboardContent() {
         }
 
         // Check if this is a returning user (not first login)
-        // Show welcome back if: not onboarding, has folder, created more than 1 minute ago
+        // Show welcome back if: not onboarding, created more than 1 minute ago
         const isReturningUser = userData?.created_at &&
           new Date(userData.created_at).getTime() < Date.now() - 60000 && // Created more than 1 minute ago
-          !searchParams.get('onboarding') &&
-          userData.drive_folder_id
+          !searchParams.get('onboarding')
 
         // Check if we've already shown mindful moment this session
         const hasShownMindful = sessionStorage.getItem('mindfulShown')
@@ -114,7 +104,7 @@ function DashboardContent() {
     <>
       {showOnboarding && (
         <QuickOnboarding
-          driveFolderId={driveFolderId || undefined}
+          driveFolderId={undefined}
           onComplete={() => setShowOnboarding(false)}
         />
       )}
@@ -132,7 +122,7 @@ function DashboardContent() {
           </h1>
           <div className="flex items-center gap-4">
             <a
-              href={driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : "https://drive.google.com/drive/my-drive"}
+              href="https://drive.google.com/drive/my-drive"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors"
