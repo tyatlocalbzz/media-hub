@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { requireAuth, getUserDriveConfig } from '@/lib/middleware/auth';
+import { requireAuth } from '@/lib/middleware/auth-service-account';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,22 +30,27 @@ export async function GET(request: NextRequest) {
 
     if (!dbUser) {
       // User exists in Supabase but not in our database yet
-      // This can happen if the OAuth callback hasn't completed
+      // Create user record
+      const newUser = await prisma.user.create({
+        data: {
+          id: user.id,
+          email: user.email || '',
+        }
+      });
+
       return NextResponse.json({
-        email: user.email,
-        driveConfigured: false,
+        email: newUser.email,
+        driveConfigured: true, // Always true with service account
         filesCount: 0,
       });
     }
 
-    // Check if Drive is configured
-    const driveConfig = await getUserDriveConfig(user.id);
-
+    // With service account, Drive is always configured
     return NextResponse.json({
       email: dbUser.email,
-      driveConfigured: !!driveConfig,
+      driveConfigured: true, // Always true with service account
       filesCount: dbUser._count.files,
-      incomingFolderId: driveConfig?.incomingFolderId || null,
+      incomingFolderId: process.env.SHARED_DRIVE_ID || null,
     });
 
   } catch (error) {

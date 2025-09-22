@@ -1,7 +1,7 @@
 // Sync Google Drive files with database
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/middleware/auth'
-import { listFiles } from '@/lib/services/drive'
+import { requireAuth } from '@/lib/middleware/auth-service-account'
+import { listFiles } from '@/lib/services/drive-service-account'
 import prisma from '@/lib/prisma'
 import { createLogger } from '@/lib/logger'
 

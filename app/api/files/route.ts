@@ -1,10 +1,10 @@
 // List files from database
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/middleware/auth'
+import { requireAuth } from '@/lib/middleware/auth-service-account'
 import prisma from '@/lib/prisma'
 import { createLogger } from '@/lib/logger'
 import { serializeBigInt } from '@/lib/utils'
-import { deleteFileFromDrive } from '@/lib/services/drive'
+import { deleteFileFromDrive } from '@/lib/services/drive-service-account'
 
 const logger = createLogger('FILES')
 

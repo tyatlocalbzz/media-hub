@@ -17,9 +17,7 @@ datasource db {
 model User {
   id                String   @id @default(uuid())
   email             String   @unique
-  drive_folder_id   String?
-  incoming_folder_id String?
-  refresh_token     String?  @db.Text
+  // OAuth fields removed - using service account instead
   files             File[]
   syncLogs          SyncLog[]
   created_at        DateTime @default(now())

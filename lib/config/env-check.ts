@@ -9,9 +9,9 @@ export function checkEnvironmentVariables() {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 
-    // Google OAuth
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    // Google Service Account
+    GOOGLE_SERVICE_ACCOUNT_KEY: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+    SHARED_DRIVE_ID: process.env.SHARED_DRIVE_ID,
 
     // Database
     DATABASE_URL: process.env.DATABASE_URL,
@@ -20,6 +20,10 @@ export function checkEnvironmentVariables() {
   // Optional environment variables
   const optional = {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    MEDIA_HUB_ROOT_FOLDER_ID: process.env.MEDIA_HUB_ROOT_FOLDER_ID,
+    // Legacy OAuth (to be removed)
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   }
 
   const missing = []
