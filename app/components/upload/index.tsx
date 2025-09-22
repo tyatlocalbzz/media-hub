@@ -2,7 +2,6 @@
 
 import { useState, useRef, DragEvent } from 'react'
 import { config } from '@/lib/config'
-import ClientUpload from './ClientUpload'
 import type { UploadedFile, UploadComponentProps } from './types'
 import { formatFileSize } from '@/lib/utils'
 
@@ -13,8 +12,6 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [uploadMethod, setUploadMethod] = useState<'server' | 'client' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get the server upload limit based on environment
@@ -53,7 +50,6 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
     // Reset states
     setError(null)
     setSuccess(null)
-    setUploadMethod(null)
 
     // For now, handle single file (can be extended for multiple)
     const file = files[0]
@@ -72,27 +68,20 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
       return
     }
 
-    // Validate file size
-    if (file.size > maxFileSize) {
-      setError(`File too large. Maximum size is ${formatFileSize(maxFileSize)}`)
+    // Check file size against Vercel limit
+    if (file.size > serverUploadLimit) {
+      setError(`File too large for Vercel deployment. Maximum size is ${formatFileSize(serverUploadLimit)}. Consider using a cloud storage solution for larger files.`)
       return
     }
 
-    // Determine upload method based on file size
-    const useClientUpload = file.size > serverUploadLimit
-    setSelectedFile(file)
-    setUploadMethod(useClientUpload ? 'client' : 'server')
-
-    console.log(`[SmartUpload] Using ${useClientUpload ? 'client' : 'server'} upload for file size ${formatFileSize(file.size)}`)
-
-    if (useClientUpload) {
-      // Large file - use client-side upload
-      // The ClientUpload component will handle this
-      console.log('[SmartUpload] File exceeds server limit, using client-side upload')
-    } else {
-      // Small file - use server-side upload
-      await uploadViaServer(file)
+    // Check against absolute max size
+    if (file.size > maxFileSize) {
+      setError(`File exceeds maximum size of ${formatFileSize(maxFileSize)}`)
+      return
     }
+
+    console.log(`[SmartUpload] Uploading file of size ${formatFileSize(file.size)}`)
+    await uploadViaServer(file)
   }
 
   const uploadViaServer = async (file: File) => {
@@ -138,30 +127,7 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
     } finally {
       setUploading(false)
       setUploadProgress(0)
-      setSelectedFile(null)
-      setUploadMethod(null)
     }
-  }
-
-  const handleClientUploadComplete = (fileData: any) => {
-    setUploadedFiles(prev => [...prev, fileData])
-    setSuccess(`Successfully uploaded ${selectedFile?.name}`)
-    setSelectedFile(null)
-    setUploadMethod(null)
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-
-    if (onUploadComplete) {
-      onUploadComplete()
-    }
-  }
-
-  const handleClientUploadError = (error: Error) => {
-    setError(error.message)
-    setSelectedFile(null)
-    setUploadMethod(null)
   }
 
   const isProduction = process.env.NODE_ENV === 'production'
@@ -173,31 +139,12 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
       {/* Info Banner */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          📊 Upload Limits: {isProduction ? `${serverLimitMB.toFixed(1)}MB` : `${maxSizeGB}GB`} via server
-          {' • '}
-          {maxSizeGB}GB via direct upload
+          📊 Upload Limit: {formatFileSize(serverUploadLimit)} (Vercel platform limit)
         </p>
       </div>
 
-      {/* Show ClientUpload component for large files */}
-      {uploadMethod === 'client' && selectedFile && (
-        <div className="mb-4">
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg mb-4">
-            <p className="text-sm text-yellow-700 dark:text-yellow-400">
-              🚀 Large file detected ({formatFileSize(selectedFile.size)}) - using direct upload to Google Drive
-            </p>
-          </div>
-          <ClientUpload
-            file={selectedFile}
-            onUploadComplete={handleClientUploadComplete}
-            onError={handleClientUploadError}
-          />
-        </div>
-      )}
-
-      {/* Standard Drop Zone (for server uploads) */}
-      {uploadMethod !== 'client' && (
-        <div
+      {/* Drop Zone */}
+      <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -240,16 +187,12 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
                   {isDragging ? 'Drop files here' : 'Click or drag files to upload'}
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Max size: {maxSizeGB}GB • Supported: Video & Audio files
-                </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  Files over {formatFileSize(serverUploadLimit)} will use direct upload
+                  Max size: {formatFileSize(serverUploadLimit)} • Supported: Video & Audio files
                 </p>
               </>
             )}
           </div>
         </div>
-      )}
 
       {/* Status Messages */}
       {error && (

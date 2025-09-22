@@ -16,22 +16,10 @@ export interface UploadComponentProps {
   supportedTypes?: string[]
 }
 
-export interface ClientUploadProps extends UploadComponentProps {
-  file?: File
-}
-
 export interface UploadProgress {
   bytesUploaded: number
   totalBytes: number
   percentage: number
-}
-
-export interface UploadSession {
-  sessionUrl: string
-  accessToken: string
-  folderId: string
-  userId: string
-  maxChunkSize: number
 }
 
 export interface FileMetadata {
