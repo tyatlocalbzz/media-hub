@@ -72,6 +72,13 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
   const handleFiles = (files: File[]) => {
     const groups = categorizeFiles(files)
 
+    console.log('[BatchUpload] Files categorized:', {
+      instant: groups.instant.length,
+      medium: groups.medium.length,
+      manual: groups.manual.length,
+      files: files.map(f => ({ name: f.name, size: formatFileSize(f.size) }))
+    })
+
     // Create status entries for all files
     const statuses: FileUploadStatus[] = [
       ...groups.instant.map(f => ({
@@ -100,6 +107,7 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
 
     // Start processing the queue
     if (groups.instant.length > 0 || groups.medium.length > 0) {
+      console.log('[BatchUpload] Starting upload queue')
       setCurrentUploadIndex(0)
     }
   }
@@ -165,9 +173,18 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
   useEffect(() => {
     if (currentUploadIndex === null || currentUploadIndex >= fileStatuses.length) {
       if (currentUploadIndex !== null && currentUploadIndex >= fileStatuses.length) {
-        // All uploads complete
-        setCurrentUploadIndex(null)
-        onUploadComplete?.()
+        // Check if all uploads are actually complete (not just reaching end of queue)
+        const allProcessed = fileStatuses.every(f =>
+          f.status === 'completed' || f.status === 'failed' || f.status === 'too-large'
+        )
+
+        if (allProcessed && fileStatuses.length > 0) {
+          console.log('[BatchUpload] All files processed, calling onUploadComplete')
+          setCurrentUploadIndex(null)
+          onUploadComplete?.()
+        } else {
+          setCurrentUploadIndex(null)
+        }
       }
       return
     }
@@ -199,7 +216,7 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
       // Don't advance here - let the LargeFileUpload component callbacks handle it
     }
     // Files > MEDIUM_LIMIT are marked as too-large and skipped
-  }, [currentUploadIndex, fileStatuses])
+  }, [currentUploadIndex, fileStatuses, onUploadComplete])
 
   // Calculate overall progress
   const overallProgress = () => {

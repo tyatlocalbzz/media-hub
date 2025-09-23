@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatFileSize } from '@/lib/utils'
 
 interface LargeFileUploadProps {
@@ -281,10 +281,13 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
     }
   }
 
-  // Start upload automatically
-  if (!isUploading && uploadedBytes === 0) {
-    performUpload()
-  }
+  // Start upload automatically when component mounts
+  useEffect(() => {
+    if (!isUploading && uploadedBytes === 0 && !sessionUri) {
+      console.log('[LargeFileUpload] Starting upload for:', file.name)
+      performUpload()
+    }
+  }, []) // Empty deps - only run once on mount
 
   return (
     <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
