@@ -107,6 +107,10 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
       let start = uploadedBytes // Resume from where we left off
       const fileSize = file.size
 
+      if (!currentSessionUri) {
+        throw new Error('Failed to create upload session')
+      }
+
       while (start < fileSize) {
         const end = Math.min(start + CHUNK_SIZE, fileSize)
         const chunk = file.slice(start, end)

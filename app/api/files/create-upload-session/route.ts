@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/middleware/auth-service-account'
 import { driveService } from '@/lib/services/drive-service-account'
-import prisma from '@/lib/prisma'
 import { google } from 'googleapis'
 
 export async function POST(request: NextRequest) {
@@ -60,7 +59,6 @@ export async function POST(request: NextRequest) {
 
     // Initialize drive service
     const authClient = await driveService.getAuthClient()
-    const drive = google.drive({ version: 'v3', auth: authClient })
 
     // Create metadata for the file
     const fileMetadata = {
@@ -83,7 +81,7 @@ export async function POST(request: NextRequest) {
     })
 
     // The session URI is in the Location header
-    const sessionUri = response.headers.location
+    const sessionUri = response.headers.get('location')
 
     if (!sessionUri) {
       throw new Error('Failed to get upload session URI from Google Drive')
