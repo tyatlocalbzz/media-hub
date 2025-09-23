@@ -14,7 +14,7 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
   const [sessionUri, setSessionUri] = useState<string | null>(null)
   const [uploadedBytes, setUploadedBytes] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
-  const [useDirectUpload, setUseDirectUpload] = useState(true) // Try direct upload first
+  const [useDirectUpload, setUseDirectUpload] = useState(false) // Default to proxy for reliability
 
   // Chunk size: 10MB for faster uploads (must be multiple of 256KB)
   const CHUNK_SIZE = 10 * 1024 * 1024
@@ -50,12 +50,12 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
 
       console.log('[LargeFileUpload] Session created:', data.sessionUri)
 
-      // Check if direct upload is supported
-      if (data.directUpload && data.corsEnabled) {
-        console.log('[LargeFileUpload] Direct upload enabled - will bypass proxy')
-        setUseDirectUpload(true)
+      // Check if direct upload is supported (disabled for now due to CORS issues)
+      if (data.directUpload && data.corsEnabled && false) { // Temporarily disabled
+        console.log('[LargeFileUpload] Direct upload would be enabled but currently disabled')
+        setUseDirectUpload(false)
       } else {
-        console.log('[LargeFileUpload] Using proxy upload')
+        console.log('[LargeFileUpload] Using proxy upload (reliable method)')
         setUseDirectUpload(false)
       }
 
