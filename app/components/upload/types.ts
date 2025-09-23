@@ -14,6 +14,7 @@ export interface UploadComponentProps {
   onError?: (error: Error) => void
   maxFileSize?: number
   supportedTypes?: string[]
+  userFolderId?: string
 }
 
 export interface UploadProgress {

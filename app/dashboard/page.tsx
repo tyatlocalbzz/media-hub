@@ -31,6 +31,7 @@ function DashboardContent() {
   const [showMindfulMoment, setShowMindfulMoment] = useState(false)
   const [userName, setUserName] = useState<string | null>(null)
   const [alwaysShowMindful, setAlwaysShowMindful] = useState(false)
+  const [userFolderId, setUserFolderId] = useState<string | null>(null)
 
   useEffect(() => {
     // Check for onboarding parameter
@@ -61,6 +62,17 @@ function DashboardContent() {
         // Set user name from email
         if (userData?.email) {
           setUserName(userData.email.split('@')[0])
+        }
+
+        // Fetch user's Google Drive folder ID
+        try {
+          const response = await fetch('/api/files/get-folder')
+          const data = await response.json()
+          if (data.success && data.folderId) {
+            setUserFolderId(data.folderId)
+          }
+        } catch (error) {
+          console.error('Failed to fetch user folder:', error)
         }
 
         // Check if this is a returning user (not first login)
@@ -156,7 +168,10 @@ function DashboardContent() {
         {/* Upload Section */}
         <div className="p-6 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border)', borderWidth: '1px', borderStyle: 'solid' }}>
           <h2 className="mb-4 text-xl font-semibold">Upload Media Files</h2>
-          <SmartFileUpload onUploadComplete={() => window.location.reload()} />
+          <SmartFileUpload
+            onUploadComplete={() => window.location.reload()}
+            userFolderId={userFolderId || undefined}
+          />
         </div>
 
         {/* Dashboard Grid */}

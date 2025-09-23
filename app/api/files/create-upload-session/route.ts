@@ -75,7 +75,9 @@ export async function POST(request: NextRequest) {
       headers: {
         'X-Upload-Content-Type': mimeType,
         'X-Upload-Content-Length': fileSize.toString(),
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        // Enable CORS for browser-based uploads
+        'Origin': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       },
       data: JSON.stringify(fileMetadata)
     })
@@ -86,6 +88,9 @@ export async function POST(request: NextRequest) {
     if (!sessionUri) {
       throw new Error('Failed to get upload session URI from Google Drive')
     }
+
+    // Important: Google Drive resumable upload sessions already support CORS
+    // The session URI includes authentication and can be used directly from browser
 
     console.log('[UPLOAD-SESSION] Created session:', {
       sessionUri: sessionUri.substring(0, 50) + '...',
@@ -103,8 +108,10 @@ export async function POST(request: NextRequest) {
       fileSize,
       mimeType,
       // Include chunk size recommendation
-      recommendedChunkSize: 256 * 1024 * 10, // 2.5MB chunks
-      maxChunkSize: 256 * 1024 * 20 // 5MB max chunk
+      recommendedChunkSize: 256 * 1024 * 40, // 10MB chunks for direct upload
+      maxChunkSize: 256 * 1024 * 100, // 25MB max chunk for direct upload
+      directUpload: true, // Flag to indicate this session supports direct browser upload
+      corsEnabled: true
     })
   } catch (error) {
     console.error('[UPLOAD-SESSION] Error:', error)
