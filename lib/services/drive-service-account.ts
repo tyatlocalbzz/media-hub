@@ -137,7 +137,7 @@ async function getUserFolder(userId: string): Promise<string> {
         q: `name='${rootFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         supportsAllDrives: true,
         includeItemsFromAllDrives: true,
-        driveId: sharedDriveId,
+        ...(sharedDriveId ? { corpora: 'drive', driveId: sharedDriveId } : {}),
         fields: 'files(id, name)'
       })
 
@@ -164,7 +164,7 @@ async function getUserFolder(userId: string): Promise<string> {
       q: `name='${userFolderName}' and '${rootFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-      driveId: sharedDriveId,
+      ...(sharedDriveId ? { corpora: 'drive', driveId: sharedDriveId } : {}),
       fields: 'files(id, name)'
     })
 
@@ -225,7 +225,7 @@ async function getIncomingFolder(userId: string): Promise<string> {
     q: `name='Incoming' and '${userFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
-    driveId: sharedDriveId,
+    ...(sharedDriveId ? { corpora: 'drive', driveId: sharedDriveId } : {}),
     fields: 'files(id)'
   })
 
@@ -262,7 +262,7 @@ export async function listFiles(userId: string) {
       pageSize: 100,
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-      driveId: sharedDriveId
+      ...(sharedDriveId ? { corpora: 'drive', driveId: sharedDriveId } : {})
     })
 
     const allFiles = response.data.files || []
@@ -325,7 +325,6 @@ export async function uploadFile(userId: string, file: Buffer | Stream, metadata
   try {
     const drive = await getDriveClient()
     const incomingFolderId = await getIncomingFolder(userId)
-    const sharedDriveId = process.env.SHARED_DRIVE_ID
 
     const response = await drive.files.create({
       requestBody: {
