@@ -16,9 +16,9 @@ export const config = {
       processed: 'Processed',
       error: 'Error'
     },
-    // Production limit for server-side uploads (Vercel has 4.5MB limit)
-    // TESTING: Using production limit in development to test client-side uploads
-    serverUploadLimit: 4.5 * 1024 * 1024, // Always use 4.5MB limit for testing
+    // Server-side upload limit (Vercel has 4.5MB limit for serverless functions)
+    // Files larger than this will use resumable upload directly to Google Drive
+    serverUploadLimit: 4.5 * 1024 * 1024, // 4.5MB - Vercel's hard limit
     supportedMimeTypes: [
       // Video formats
       'video/mp4',

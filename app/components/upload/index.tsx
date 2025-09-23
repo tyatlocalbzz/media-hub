@@ -4,6 +4,7 @@ import { useState, useRef, DragEvent } from 'react'
 import { config } from '@/lib/config'
 import type { UploadedFile, UploadComponentProps } from './types'
 import { formatFileSize } from '@/lib/utils'
+import { LargeFileUpload } from './LargeFileUpload'
 
 export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
   const [isDragging, setIsDragging] = useState(false)
@@ -12,6 +13,7 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [largeFile, setLargeFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get the server upload limit based on environment
@@ -70,7 +72,11 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
 
     // Check file size against Vercel limit
     if (file.size > serverUploadLimit) {
-      setError(`File too large for Vercel deployment. Maximum size is ${formatFileSize(serverUploadLimit)}. Consider using a cloud storage solution for larger files.`)
+      // Use resumable upload for large files
+      console.log(`[SmartUpload] File too large for server upload (${formatFileSize(file.size)}), using resumable upload`)
+      setLargeFile(file)
+      setUploading(true)
+      setError(null)
       return
     }
 
@@ -228,6 +234,46 @@ export function SmartFileUpload({ onUploadComplete }: UploadComponentProps) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Large File Upload Handler */}
+      {largeFile && uploading && (
+        <div className="mt-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm font-semibold mb-2">Large File Upload</h3>
+          <p className="text-sm mb-2">
+            Uploading {largeFile.name} ({formatFileSize(largeFile.size)})
+          </p>
+          <LargeFileUpload
+            file={largeFile}
+            onProgress={(progress) => {
+              setUploadProgress(progress)
+            }}
+            onComplete={(file) => {
+              setUploading(false)
+              setUploadProgress(0)
+              setLargeFile(null)
+              if (file) {
+                setUploadedFiles(prev => [...prev, file])
+                setSuccess(`Successfully uploaded ${largeFile.name} to Google Drive`)
+              }
+              if (onUploadComplete) {
+                onUploadComplete(file)
+              }
+            }}
+            onError={(error) => {
+              setUploading(false)
+              setUploadProgress(0)
+              setLargeFile(null)
+              setError(error)
+            }}
+          />
+          <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

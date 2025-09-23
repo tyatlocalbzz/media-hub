@@ -404,3 +404,18 @@ export async function testDriveConnection() {
 
 // Stream type for TypeScript
 type Stream = NodeJS.ReadableStream
+
+// Export service functions as a single object for easier imports
+export const driveService = {
+  getAuthClient,
+  getDriveClient,
+  getOrCreateUserFolder: getUserFolder, // Alias for external use
+  listFiles,
+  uploadFile,
+  deleteFileFromDrive,
+  testDriveConnection,
+  formatFileSize,
+  formatDuration,
+  isMediaFile,
+  getFileType
+}
