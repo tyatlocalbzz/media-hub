@@ -99,7 +99,7 @@ export async function checkRateLimit(
 // Clean up old entries from memory
 function cleanupOldEntries(): void {
   const now = Date.now()
-  for (const [key, value] of rateLimitStore.entries()) {
+  Array.from(rateLimitStore.entries()).forEach(([key, value]) => {
     const [, limitType] = key.split(':')
     const config = RATE_LIMITS[limitType] || RATE_LIMITS.api
     const windowStart = now - config.windowMs
@@ -110,7 +110,7 @@ function cleanupOldEntries(): void {
     if (value.requests.length === 0) {
       rateLimitStore.delete(key)
     }
-  }
+  })
 }
 
 // Get user's current rate limit status
