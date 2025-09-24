@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         driveFileId: file.driveFileId,
         name: file.name,
         mimeType: file.mimeType,
-        size: file.size.toString(),
+        size: file.size ? file.size.toString() : '0',
         driveUrl: file.driveUrl,
         thumbnailUrl: file.thumbnailUrl
       }
