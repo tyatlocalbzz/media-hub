@@ -5,10 +5,13 @@ import prisma from '@/lib/prisma'
 import { google } from 'googleapis'
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+
   try {
     // Check authentication
     const authResult = await requireAuth(request)
     if (!authResult.user) {
+      console.error('[CONFIRM-UPLOAD] ❌ Authentication failed')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -17,15 +20,20 @@ export async function POST(request: NextRequest) {
     const { sessionUri, fileName, fileSize, mimeType } = body
 
     if (!sessionUri || !fileName) {
+      console.error('[CONFIRM-UPLOAD] ❌ Missing required fields')
       return NextResponse.json(
         { error: 'Missing required fields: sessionUri, fileName' },
         { status: 400 }
       )
     }
 
-    console.log('[CONFIRM-UPLOAD] Confirming upload for:', {
+    console.log('[CONFIRM-UPLOAD] 🔍 Starting upload confirmation:', {
       fileName,
-      userId: authResult.user.id
+      expectedSize: fileSize,
+      mimeType,
+      userId: authResult.user.id,
+      sessionUriLength: sessionUri.length,
+      timestamp: new Date().toISOString()
     })
 
     // Initialize drive service
@@ -34,6 +42,8 @@ export async function POST(request: NextRequest) {
 
     // Query the upload status to get the file ID
     // Send an empty PUT with Content-Range: bytes */fileSize to get status
+    console.log('[CONFIRM-UPLOAD] 📡 Querying upload status from Google Drive...')
+
     const statusResponse = await authClient.request({
       url: sessionUri,
       method: 'PUT',
@@ -43,12 +53,15 @@ export async function POST(request: NextRequest) {
     }).catch((error: any) => {
       // If we get a 200 or 201, the upload is complete
       if (error.response?.status === 200 || error.response?.status === 201) {
+        console.log('[CONFIRM-UPLOAD] ✅ Upload confirmed complete by Google Drive')
         return error.response
       }
       // If we get 308, upload is incomplete
       if (error.response?.status === 308) {
+        console.error('[CONFIRM-UPLOAD] ⚠️ Upload incomplete, range:', error.response?.headers?.range)
         throw new Error('Upload is incomplete. Please continue uploading.')
       }
+      console.error('[CONFIRM-UPLOAD] ❌ Status query failed:', error.response?.status, error.message)
       throw error
     })
 
@@ -82,6 +95,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get file metadata from Drive
+    console.log('[CONFIRM-UPLOAD] 📊 Fetching file metadata from Google Drive...')
+
     const fileResponse = await drive.files.get({
       fileId: fileId,
       fields: 'id, name, size, mimeType, webViewLink, thumbnailLink, createdTime, modifiedTime',
@@ -89,6 +104,17 @@ export async function POST(request: NextRequest) {
     })
 
     const driveFile = fileResponse.data
+
+    console.log('[CONFIRM-UPLOAD] 📁 Google Drive file details:', {
+      driveFileId: driveFile.id,
+      fileName: driveFile.name,
+      actualSize: driveFile.size,
+      expectedSize: fileSize,
+      sizeMismatch: fileSize && driveFile.size ? Math.abs(Number(driveFile.size) - fileSize) > 1000 : false,
+      mimeType: driveFile.mimeType,
+      hasWebLink: !!driveFile.webViewLink,
+      hasThumbnail: !!driveFile.thumbnailLink
+    })
 
     // Store file metadata in database
     const file = await prisma.file.create({
@@ -105,11 +131,16 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('[CONFIRM-UPLOAD] Upload confirmed:', {
+    const totalTime = Date.now() - startTime
+
+    console.log('[CONFIRM-UPLOAD] ✅ Upload confirmed and saved to database:', {
       fileId: file.id,
       driveFileId: file.driveFileId,
       name: file.name,
-      size: file.size?.toString()
+      size: file.size?.toString(),
+      sizeInMB: file.size ? `${(Number(file.size) / (1024 * 1024)).toFixed(2)} MB` : 'N/A',
+      confirmationTime: `${totalTime}ms`,
+      timestamp: new Date().toISOString()
     })
 
     return NextResponse.json({

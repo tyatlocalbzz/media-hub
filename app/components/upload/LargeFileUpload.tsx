@@ -91,17 +91,25 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
   const uploadChunk = async (sessionUri: string, chunk: Blob, start: number, end: number, total: number, retryCount = 0) => {
     const contentRange = `bytes ${start}-${end - 1}/${total}`
     const chunkSize = end - start
-    console.log(`[LargeFileUpload] Uploading chunk (${useDirectUpload ? 'direct' : 'proxy'}):`, {
+    const chunkNumber = Math.floor(start / CHUNK_SIZE) + 1
+    const totalChunks = Math.ceil(total / CHUNK_SIZE)
+    const chunkStartTime = Date.now()
+
+    console.log(`[LargeFileUpload] 📤 Uploading chunk ${chunkNumber}/${totalChunks} (${useDirectUpload ? 'direct' : 'proxy'}):`, {
       range: contentRange,
       chunkSize: formatFileSize(chunkSize),
-      actualChunkSize: chunk.size
+      actualChunkSize: chunk.size,
+      progress: `${((end / total) * 100).toFixed(1)}%`,
+      retryCount,
+      timestamp: new Date().toISOString()
     })
 
     // Verify chunk size matches expected
     if (chunk.size !== chunkSize) {
-      console.error('[LargeFileUpload] CHUNK SIZE MISMATCH!', {
+      console.error('[LargeFileUpload] ⚠️ CHUNK SIZE MISMATCH!', {
         expected: chunkSize,
-        actual: chunk.size
+        actual: chunk.size,
+        difference: chunk.size - chunkSize
       })
     }
 
@@ -153,6 +161,9 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
       // 308 Resume Incomplete means chunk uploaded successfully, continue
       if (response.status === 308) {
         const range = response.headers.get('range')
+        const chunkUploadTime = Date.now() - chunkStartTime
+        const uploadSpeed = (chunk.size / (chunkUploadTime / 1000) / (1024 * 1024)).toFixed(2)
+
         if (range) {
           // Parse "bytes=0-524287" format
           const match = range.match(/bytes=0-(\d+)/)
@@ -161,12 +172,25 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
             setUploadedBytes(uploadedEnd)
             setTotalBytesUploaded(prev => prev + (end - start))
             onProgress((uploadedEnd / total) * 100)
+
+            console.log(`[LargeFileUpload] ✅ Chunk ${chunkNumber}/${totalChunks} uploaded successfully:`, {
+              uploadedBytes: uploadedEnd,
+              chunkTime: `${chunkUploadTime}ms`,
+              uploadSpeed: `${uploadSpeed} MB/s`,
+              serverConfirmedRange: range
+            })
           }
         } else {
           // If no range header, just update based on what we sent
           setUploadedBytes(end)
           setTotalBytesUploaded(prev => prev + (end - start))
           onProgress((end / total) * 100)
+
+          console.log(`[LargeFileUpload] ✅ Chunk ${chunkNumber}/${totalChunks} uploaded (no range header):`, {
+            assumedUploadedBytes: end,
+            chunkTime: `${chunkUploadTime}ms`,
+            uploadSpeed: `${uploadSpeed} MB/s`
+          })
         }
         return { complete: false, response }
       }
@@ -187,10 +211,15 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
         }
 
         // Final integrity check
-        console.log('[LargeFileUpload] Upload complete - Integrity check:', {
+        const finalUploadTime = Date.now() - chunkStartTime
+        console.log('[LargeFileUpload] 🎉 Upload complete - Final integrity check:', {
           originalSize: total,
+          originalSizeInMB: `${(total / (1024 * 1024)).toFixed(2)} MB`,
           totalUploaded: totalBytesUploaded + (end - start),
-          match: (totalBytesUploaded + (end - start)) === total
+          sizesMatch: (totalBytesUploaded + (end - start)) === total,
+          finalChunkTime: `${finalUploadTime}ms`,
+          responseData: data,
+          timestamp: new Date().toISOString()
         })
 
         return { complete: true, data: data?.file || data, response }
@@ -199,17 +228,23 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
       // Any other status is an error
       throw new Error(`Upload failed with status: ${response.status}`)
     } catch (error) {
-      console.error('[LargeFileUpload] Chunk upload error:', error)
+      const chunkFailTime = Date.now() - chunkStartTime
+      console.error(`[LargeFileUpload] ❌ Chunk ${chunkNumber}/${totalChunks} upload error:`, {
+        error: error instanceof Error ? error.message : error,
+        chunkNumber,
+        failedAfter: `${chunkFailTime}ms`,
+        retryCount
+      })
 
       // Handle timeout and retry
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           if (retryCount < 3) {
-            console.log(`[LargeFileUpload] Chunk upload timed out, retrying... (attempt ${retryCount + 1}/3)`)
+            console.log(`[LargeFileUpload] ⏱️ Chunk ${chunkNumber} timed out, retrying... (attempt ${retryCount + 1}/3)`)
             await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))) // Exponential backoff
             return uploadChunk(sessionUri, chunk, start, end, total, retryCount + 1)
           }
-          throw new Error('Upload timed out after multiple attempts')
+          throw new Error(`Chunk ${chunkNumber} upload timed out after 3 attempts`)
         }
       }
 
@@ -225,8 +260,17 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
   }
 
   const performUpload = async () => {
+    const uploadStartTime = Date.now()
     setIsUploading(true)
     let currentSessionUri = sessionUri
+
+    console.log('[LargeFileUpload] 🚀 Starting upload process:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileSizeInMB: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+      totalChunks: Math.ceil(file.size / CHUNK_SIZE),
+      timestamp: new Date().toISOString()
+    })
 
     try {
       // Create upload session if we don't have one
@@ -286,11 +330,19 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
 
         if (result.complete) {
           // Upload complete!
-          console.log('[LargeFileUpload] Upload complete:', {
-            data: result.data,
+          const totalUploadTime = Date.now() - uploadStartTime
+          const averageSpeed = (file.size / (totalUploadTime / 1000) / (1024 * 1024)).toFixed(2)
+
+          console.log('[LargeFileUpload] 🎊 UPLOAD COMPLETE - Full Summary:', {
+            fileName: file.name,
             originalFileSize: file.size,
-            totalBytesUploaded: totalBytesUploaded,
-            finalChunkEnd: end
+            fileSizeInMB: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+            totalBytesUploaded: totalBytesUploaded + (end - start),
+            totalUploadTime: `${(totalUploadTime / 1000).toFixed(1)} seconds`,
+            averageSpeed: `${averageSpeed} MB/s`,
+            totalChunks: Math.ceil(file.size / CHUNK_SIZE),
+            driveFileData: result.data,
+            timestamp: new Date().toISOString()
           })
 
           // Try to confirm upload with our backend
