@@ -9,12 +9,10 @@
   "crons": [],
   "functions": {
     "app/api/files/upload/route.ts": {
-      "maxDuration": 60,
-      "maxBodySize": "10mb"
+      "maxDuration": 60
     },
     "app/api/files/upload-chunk/route.ts": {
-      "maxDuration": 300,
-      "maxBodySize": "50mb"
+      "maxDuration": 300
     },
     "app/api/files/create-upload-session/route.ts": {
       "maxDuration": 30
