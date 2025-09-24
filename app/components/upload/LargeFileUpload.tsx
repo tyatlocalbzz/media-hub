@@ -245,7 +245,42 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
 
       while (start < fileSize) {
         const end = Math.min(start + CHUNK_SIZE, fileSize)
+
+        console.log(`[LargeFileUpload] Slicing chunk ${Math.floor(start / CHUNK_SIZE) + 1}:`, {
+          start,
+          end,
+          expectedSize: end - start,
+          totalFileSize: fileSize,
+          progress: ((start / fileSize) * 100).toFixed(1) + '%'
+        })
+
         const chunk = file.slice(start, end)
+
+        console.log(`[LargeFileUpload] Chunk sliced:`, {
+          actualChunkSize: chunk.size,
+          expectedChunkSize: end - start,
+          chunkType: chunk.type,
+          isLastChunk: end >= fileSize
+        })
+
+        if (chunk.size === 0) {
+          console.error('[LargeFileUpload] ERROR: Chunk size is 0!', {
+            start,
+            end,
+            fileSize,
+            fileName: file.name
+          })
+          throw new Error('File appears to be truncated - unable to read chunk')
+        }
+
+        if (chunk.size !== (end - start)) {
+          console.error('[LargeFileUpload] ERROR: Chunk size mismatch!', {
+            expected: end - start,
+            actual: chunk.size,
+            start,
+            end
+          })
+        }
 
         const result = await uploadChunk(currentSessionUri, chunk, start, end, fileSize)
 
@@ -329,7 +364,18 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
   // Start upload automatically when component mounts
   useEffect(() => {
     if (!isUploading && uploadedBytes === 0 && !sessionUri) {
-      console.log('[LargeFileUpload] Starting upload for:', file.name)
+      console.log('[LargeFileUpload] Component mounted, starting upload for:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileSizeInMB: (file.size / (1024 * 1024)).toFixed(2),
+        fileType: file.type,
+        fileObjectInfo: {
+          constructor: file.constructor.name,
+          hasSlice: typeof file.slice === 'function',
+          hasStream: typeof (file as any).stream === 'function',
+          hasArrayBuffer: typeof (file as any).arrayBuffer === 'function'
+        }
+      })
       performUpload()
     }
   }, []) // Empty deps - only run once on mount

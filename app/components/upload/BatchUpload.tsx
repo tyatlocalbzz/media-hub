@@ -55,7 +55,23 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
     e.preventDefault()
     setIsDragging(false)
 
+    console.log('[BatchUpload] handleDrop - DataTransfer info:', {
+      filesCount: e.dataTransfer.files.length,
+      types: e.dataTransfer.types,
+      effectAllowed: e.dataTransfer.effectAllowed,
+      dropEffect: e.dataTransfer.dropEffect
+    })
+
     const files = Array.from(e.dataTransfer.files)
+    console.log('[BatchUpload] handleDrop - Files from drop:', files.map((f, i) => ({
+      index: i,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+      lastModified: f.lastModified,
+      webkitRelativePath: (f as any).webkitRelativePath
+    })))
+
     if (files.length > 0) {
       handleFiles(files)
     }
@@ -63,9 +79,25 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
 
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('[BatchUpload] handleFileSelect - Input event:', {
+      filesCount: e.target.files?.length,
+      inputValue: e.target.value
+    })
+
     const files = e.target.files
     if (files && files.length > 0) {
-      handleFiles(Array.from(files))
+      const filesArray = Array.from(files)
+      console.log('[BatchUpload] handleFileSelect - Files from input:', filesArray.map((f, i) => ({
+        index: i,
+        name: f.name,
+        size: f.size,
+        sizeInMB: (f.size / (1024 * 1024)).toFixed(2),
+        type: f.type,
+        lastModified: new Date(f.lastModified).toISOString()
+      })))
+      handleFiles(filesArray)
+    } else {
+      console.log('[BatchUpload] handleFileSelect - No files selected')
     }
   }
 
@@ -80,15 +112,81 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
       lastModified: new Date(f.lastModified).toISOString()
     })))
 
+    // Deep inspection of first file
+    if (files.length > 0) {
+      const firstFile = files[0]
+      console.log('[BatchUpload] First file deep inspection:', {
+        fileName: firstFile.name,
+        fileSize: firstFile.size,
+        fileSizeInBytes: firstFile.size.toString(),
+        fileSizeHex: '0x' + firstFile.size.toString(16),
+        fileType: firstFile.type,
+        lastModified: firstFile.lastModified,
+        fileKeys: Object.keys(firstFile),
+        fileProto: Object.getPrototypeOf(firstFile).constructor.name,
+        isFile: firstFile instanceof File,
+        isBlob: firstFile instanceof Blob
+      })
+
+      // Try to read a small portion to verify file is readable
+      const testSlice = firstFile.slice(0, 1024)
+      console.log('[BatchUpload] Test slice (first 1KB):', {
+        sliceSize: testSlice.size,
+        sliceType: testSlice.type
+      })
+
+      // Check if we can read the full file size
+      if (firstFile.size > 10 * 1024 * 1024) { // Only for files > 10MB
+        // Test reading from different positions
+        const positions = [
+          { start: 0, end: 1024, label: 'First 1KB' },
+          { start: Math.floor(firstFile.size / 2), end: Math.floor(firstFile.size / 2) + 1024, label: 'Middle 1KB' },
+          { start: Math.max(0, firstFile.size - 1024), end: firstFile.size, label: 'Last 1KB' }
+        ]
+
+        positions.forEach(pos => {
+          try {
+            const slice = firstFile.slice(pos.start, pos.end)
+            console.log(`[BatchUpload] ${pos.label} test:`, {
+              requestedStart: pos.start,
+              requestedEnd: pos.end,
+              expectedSize: pos.end - pos.start,
+              actualSize: slice.size,
+              success: slice.size === (pos.end - pos.start)
+            })
+          } catch (error) {
+            console.error(`[BatchUpload] Failed to read ${pos.label}:`, error)
+          }
+        })
+      }
+    }
+
     // Validate file sizes - warn if suspiciously small
-    files.forEach(file => {
+    files.forEach((file, index) => {
       // Check if file name suggests video but size is too small
       const isVideo = file.type.startsWith('video/') ||
                       file.name.toLowerCase().match(/\.(mp4|mov|avi|mkv|webm)$/)
 
+      console.log(`[BatchUpload] File ${index} validation:`, {
+        name: file.name,
+        isVideo,
+        size: file.size,
+        sizeInMB: (file.size / (1024 * 1024)).toFixed(2),
+        type: file.type,
+        fileObject: file
+      })
+
       if (isVideo && file.size < 1024 * 1024) { // Less than 1MB for a video is suspicious
         console.error(`[BatchUpload] WARNING: Video file "${file.name}" is suspiciously small: ${formatFileSize(file.size)}`)
         alert(`Warning: Video file "${file.name}" appears truncated (only ${formatFileSize(file.size)}). Please try selecting the file again.`)
+      }
+
+      // Additional check for expected size
+      if (file.name.toLowerCase().includes('100mb') || file.name.toLowerCase().includes('100 mb')) {
+        const expectedSize = 100 * 1024 * 1024
+        const actualSize = file.size
+        const ratio = actualSize / expectedSize
+        console.warn(`[BatchUpload] File name suggests 100MB but size is ${formatFileSize(actualSize)} (${(ratio * 100).toFixed(1)}% of expected)`)
       }
     })
 
