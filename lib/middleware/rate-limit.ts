@@ -1,5 +1,5 @@
-// Rate limiting middleware for upload protection
-import prisma from '@/lib/prisma'
+// Simple in-memory rate limiting for MVP
+// Note: This resets on server restart - for production use Redis or database
 
 interface RateLimitConfig {
   windowMs: number      // Time window in milliseconds
@@ -14,6 +14,9 @@ interface RateLimitResult {
   retryAfter?: number   // Seconds until reset
   bytesRemaining?: number
 }
+
+// In-memory storage for rate limit data
+const rateLimitStore = new Map<string, { requests: Date[], bytes: number }>()
 
 // Default rate limit configurations
 const RATE_LIMITS: Record<string, RateLimitConfig> = {
@@ -36,109 +39,77 @@ export async function checkRateLimit(
   const config = RATE_LIMITS[limitType]
   const now = new Date()
   const windowStart = new Date(now.getTime() - config.windowMs)
+  const key = `${userId}:${limitType}`
 
-  try {
-    // Get recent activity from database
-    const recentActivity = await prisma.rateLimitLog.findMany({
-      where: {
-        userId,
-        type: limitType,
-        createdAt: {
-          gte: windowStart
-        }
-      },
-      select: {
-        createdAt: true,
-        bytes: true
-      }
-    })
+  // Get or create user's rate limit data
+  let userData = rateLimitStore.get(key)
+  if (!userData) {
+    userData = { requests: [], bytes: 0 }
+    rateLimitStore.set(key, userData)
+  }
 
-    // Count requests and bytes
-    const requestCount = recentActivity.length
-    const bytesUsed = recentActivity.reduce((sum, log) => sum + (log.bytes || 0), 0)
+  // Clean up old requests
+  userData.requests = userData.requests.filter(date => date > windowStart)
 
-    // Check if limit exceeded
-    const requestsRemaining = config.maxRequests - requestCount
-    const bytesRemaining = config.maxBytes ? config.maxBytes - bytesUsed : undefined
+  // Count requests in current window
+  const requestCount = userData.requests.length
 
-    // Check request limit
-    if (requestCount >= config.maxRequests) {
-      const oldestLog = recentActivity[0]
-      const resetTime = new Date(oldestLog.createdAt.getTime() + config.windowMs)
-      const retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000)
-
-      return {
-        allowed: false,
-        limit: config.maxRequests,
-        remaining: 0,
-        retryAfter,
-        bytesRemaining
-      }
-    }
-
-    // Check byte limit if applicable
-    if (config.maxBytes && bytesUsed + bytesRequested > config.maxBytes) {
-      const oldestLog = recentActivity[0]
-      const resetTime = new Date(oldestLog.createdAt.getTime() + config.windowMs)
-      const retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000)
-
-      return {
-        allowed: false,
-        limit: config.maxRequests,
-        remaining: requestsRemaining,
-        retryAfter,
-        bytesRemaining: Math.max(0, config.maxBytes - bytesUsed)
-      }
-    }
-
-    // Log this request
-    await prisma.rateLimitLog.create({
-      data: {
-        userId,
-        type: limitType,
-        bytes: bytesRequested || 0
-      }
-    })
-
-    // Clean up old logs (async, don't wait)
-    cleanupOldLogs(userId, limitType, windowStart).catch(console.error)
+  // Check if limit exceeded
+  if (requestCount >= config.maxRequests) {
+    const oldestRequest = userData.requests[0]
+    const resetTime = new Date(oldestRequest.getTime() + config.windowMs)
+    const retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000)
 
     return {
-      allowed: true,
+      allowed: false,
       limit: config.maxRequests,
-      remaining: requestsRemaining - 1, // -1 because we just used one
-      bytesRemaining: bytesRemaining ? bytesRemaining - bytesRequested : undefined
+      remaining: 0,
+      retryAfter,
+      bytesRemaining: config.maxBytes ? Math.max(0, config.maxBytes - userData.bytes) : undefined
     }
-  } catch (error) {
-    console.error('[Rate Limit] Error checking rate limit:', error)
+  }
 
-    // On error, allow the request but log it
+  // Check byte limit if applicable
+  if (config.maxBytes && userData.bytes + bytesRequested > config.maxBytes) {
     return {
-      allowed: true,
+      allowed: false,
       limit: config.maxRequests,
-      remaining: config.maxRequests
+      remaining: config.maxRequests - requestCount,
+      bytesRemaining: Math.max(0, config.maxBytes - userData.bytes)
     }
+  }
+
+  // Allow the request
+  userData.requests.push(now)
+  userData.bytes += bytesRequested
+
+  // Clean up old entries periodically
+  if (Math.random() < 0.1) { // 10% chance to clean up
+    cleanupOldEntries()
+  }
+
+  return {
+    allowed: true,
+    limit: config.maxRequests,
+    remaining: config.maxRequests - requestCount - 1,
+    bytesRemaining: config.maxBytes ? Math.max(0, config.maxBytes - userData.bytes - bytesRequested) : undefined
   }
 }
 
-// Cleanup old rate limit logs
-async function cleanupOldLogs(
-  userId: string,
-  type: string,
-  before: Date
-): Promise<void> {
-  try {
-    await prisma.rateLimitLog.deleteMany({
-      where: {
-        userId,
-        type,
-        createdAt: {
-          lt: before
-        }
-      }
-    })
-  } catch (error) {
-    console.error('[Rate Limit] Error cleaning up old logs:', error)
+// Clean up old entries from memory
+function cleanupOldEntries(): void {
+  const now = Date.now()
+  for (const [key, value] of rateLimitStore.entries()) {
+    const [, limitType] = key.split(':')
+    const config = RATE_LIMITS[limitType] || RATE_LIMITS.api
+    const windowStart = now - config.windowMs
+
+    // Remove entries with no recent requests
+    value.requests = value.requests.filter(date => date.getTime() > windowStart)
+
+    if (value.requests.length === 0) {
+      rateLimitStore.delete(key)
+    }
   }
 }
 
@@ -150,51 +121,34 @@ export async function getRateLimitStatus(
   const config = RATE_LIMITS[limitType]
   const now = new Date()
   const windowStart = new Date(now.getTime() - config.windowMs)
+  const key = `${userId}:${limitType}`
 
-  try {
-    const recentActivity = await prisma.rateLimitLog.findMany({
-      where: {
-        userId,
-        type: limitType,
-        createdAt: {
-          gte: windowStart
-        }
-      },
-      select: {
-        createdAt: true,
-        bytes: true
-      }
-    })
-
-    const requestCount = recentActivity.length
-    const bytesUsed = recentActivity.reduce((sum, log) => sum + (log.bytes || 0), 0)
-    const requestsRemaining = Math.max(0, config.maxRequests - requestCount)
-    const bytesRemaining = config.maxBytes
-      ? Math.max(0, config.maxBytes - bytesUsed)
-      : undefined
-
-    let retryAfter: number | undefined
-    if (requestCount >= config.maxRequests && recentActivity.length > 0) {
-      const oldestLog = recentActivity[0]
-      const resetTime = new Date(oldestLog.createdAt.getTime() + config.windowMs)
-      retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000)
-    }
-
-    return {
-      allowed: requestCount < config.maxRequests,
-      limit: config.maxRequests,
-      remaining: requestsRemaining,
-      retryAfter,
-      bytesRemaining
-    }
-  } catch (error) {
-    console.error('[Rate Limit] Error getting status:', error)
-
+  const userData = rateLimitStore.get(key)
+  if (!userData) {
     return {
       allowed: true,
       limit: config.maxRequests,
       remaining: config.maxRequests
     }
+  }
+
+  // Clean up old requests
+  userData.requests = userData.requests.filter(date => date > windowStart)
+  const requestCount = userData.requests.length
+
+  let retryAfter: number | undefined
+  if (requestCount >= config.maxRequests && userData.requests.length > 0) {
+    const oldestRequest = userData.requests[0]
+    const resetTime = new Date(oldestRequest.getTime() + config.windowMs)
+    retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000)
+  }
+
+  return {
+    allowed: requestCount < config.maxRequests,
+    limit: config.maxRequests,
+    remaining: Math.max(0, config.maxRequests - requestCount),
+    retryAfter,
+    bytesRemaining: config.maxBytes ? Math.max(0, config.maxBytes - userData.bytes) : undefined
   }
 }
 
@@ -203,15 +157,11 @@ export async function resetRateLimit(
   userId: string,
   limitType?: 'upload' | 'api'
 ): Promise<void> {
-  try {
-    await prisma.rateLimitLog.deleteMany({
-      where: {
-        userId,
-        ...(limitType ? { type: limitType } : {})
-      }
-    })
-  } catch (error) {
-    console.error('[Rate Limit] Error resetting rate limit:', error)
-    throw error
+  if (limitType) {
+    rateLimitStore.delete(`${userId}:${limitType}`)
+  } else {
+    // Reset all limits for user
+    rateLimitStore.delete(`${userId}:upload`)
+    rateLimitStore.delete(`${userId}:api`)
   }
 }

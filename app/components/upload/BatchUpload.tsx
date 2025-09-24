@@ -3,7 +3,6 @@
 import { useState, useRef, DragEvent, useEffect } from 'react'
 import { formatFileSize } from '@/lib/utils'
 import { LargeFileUpload } from './LargeFileUpload'
-import { DirectUpload } from './DirectUpload'
 import type { UploadedFile } from './types'
 
 interface FileGroup {
@@ -26,7 +25,7 @@ interface BatchUploadProps {
 }
 
 // File size limits
-const INSTANT_LIMIT = 4.5 * 1024 * 1024      // 4.5 MB - Direct to GCS (zero bandwidth)
+const INSTANT_LIMIT = 4.5 * 1024 * 1024      // 4.5 MB - Vercel function limit
 const MEDIUM_LIMIT = 500 * 1024 * 1024       // 500 MB - Resumable upload limit
 
 export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps) {
@@ -233,12 +232,67 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
     }
   }
 
-  // Upload instant files (< 4.5 MB) - Now uses zero-bandwidth direct upload
+  // Upload instant files (< 4.5 MB)
   const uploadInstantFile = async (file: File, index: number) => {
-    // This function is now just a placeholder for the DirectUpload component
-    // The actual upload is handled by DirectUpload
-    console.log('[BatchUpload] Instant file will be uploaded via DirectUpload:', file.name)
-    return true
+    console.log('[BatchUpload] Uploading instant file:', {
+      name: file.name,
+      size: formatFileSize(file.size),
+      type: file.type
+    })
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response) {
+        throw new Error('Network error: Unable to connect to server')
+      }
+
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        if (!response.ok) {
+          throw new Error(`Upload failed with status ${response.status}`)
+        }
+        throw new Error('Invalid response from server')
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || `Upload failed with status ${response.status}`)
+      }
+
+      console.log('[BatchUpload] Instant file uploaded successfully:', data.file?.id)
+
+      setFileStatuses(prev => prev.map((s, i) =>
+        i === index ? { ...s, status: 'completed', progress: 100, result: data.file } : s
+      ))
+
+      return true
+    } catch (error) {
+      let errorMessage = 'Upload failed'
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'Network error: Unable to connect to server'
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      console.error('[BatchUpload] Upload error:', error)
+
+      setFileStatuses(prev => prev.map((s, i) =>
+        i === index ? {
+          ...s,
+          status: 'failed',
+          error: errorMessage
+        } : s
+      ))
+      return false
+    }
   }
 
   // Process upload queue
@@ -276,10 +330,9 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
 
     // Upload based on file size
     if (currentFile.file.size <= INSTANT_LIMIT) {
-      // For instant files, DirectUpload component handles everything
-      // We just need to mark that we're processing this file
-      console.log(`[BatchUpload] Processing instant file: ${currentFile.file.name}`)
-      // The queue advancement is handled by DirectUpload callbacks
+      uploadInstantFile(currentFile.file, currentUploadIndex).then(() => {
+        setCurrentUploadIndex(currentUploadIndex + 1)
+      })
     } else if (currentFile.file.size <= MEDIUM_LIMIT) {
       // Medium files need to advance the queue too!
       // The LargeFileUpload component will handle the actual upload
@@ -404,36 +457,6 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
                       {f.status === 'failed' && f.error && (
                         <div className="text-xs text-red-600 dark:text-red-400 mt-1 ml-6">
                           {f.error}
-                        </div>
-                      )}
-                      {f.status === 'uploading' && currentUploadIndex === fileStatuses.indexOf(f) && (
-                        <div className="mt-2">
-                          <DirectUpload
-                            file={f.file}
-                            onProgress={(progress) => {
-                              setFileStatuses(prev => prev.map((s, idx) =>
-                                idx === fileStatuses.indexOf(f)
-                                  ? { ...s, progress }
-                                  : s
-                              ))
-                            }}
-                            onComplete={(file) => {
-                              setFileStatuses(prev => prev.map((s, idx) =>
-                                idx === fileStatuses.indexOf(f)
-                                  ? { ...s, status: 'completed', progress: 100, result: file }
-                                  : s
-                              ))
-                              setCurrentUploadIndex((currentUploadIndex || 0) + 1)
-                            }}
-                            onError={(error) => {
-                              setFileStatuses(prev => prev.map((s, idx) =>
-                                idx === fileStatuses.indexOf(f)
-                                  ? { ...s, status: 'failed', error }
-                                  : s
-                              ))
-                              setCurrentUploadIndex((currentUploadIndex || 0) + 1)
-                            }}
-                          />
                         </div>
                       )}
                     </div>

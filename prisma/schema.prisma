@@ -9,13 +9,12 @@ datasource db {
 }
 
 model User {
-  id            String          @id @default(uuid()) @db.Uuid
-  email         String          @unique
-  files         File[]
-  syncLogs      SyncLog[]
-  rateLimitLogs RateLimitLog[]
-  created_at    DateTime?       @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime?       @default(now()) @updatedAt @db.Timestamptz(6)
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String    @unique
+  files      File[]
+  syncLogs   SyncLog[]
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamptz(6)
 
   @@map("users")
 }
@@ -67,15 +66,4 @@ enum Status {
   NEW
   TRANSCRIBING
   READY
-}
-
-model RateLimitLog {
-  id        String   @id @default(cuid())
-  userId    String   @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // 'upload' or 'api'
-  bytes     Int      @default(0)
-  createdAt DateTime @default(now())
-
-  @@index([userId, type, createdAt])
 }

@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Other Next.js config options
-  experimental: {
-    // Enable server actions if needed
-    serverActions: {
-      bodySizeLimit: '10mb'
-    }
-  }
+  // API configuration for file uploads
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increased limit for file uploads
+    },
+    responseLimit: '10mb',
+  },
 }
 
 export default nextConfig
