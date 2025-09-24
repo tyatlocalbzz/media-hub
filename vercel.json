@@ -19,6 +19,12 @@
     },
     "app/api/files/confirm-upload/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/files/create-signed-url/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/files/process-upload/route.ts": {
+      "maxDuration": 60
     }
   }
 }
