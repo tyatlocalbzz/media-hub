@@ -15,13 +15,27 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
   const [uploadedBytes, setUploadedBytes] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [useDirectUpload, setUseDirectUpload] = useState(false) // Default to proxy for reliability
+  const [totalBytesUploaded, setTotalBytesUploaded] = useState(0)
 
   // Chunk size: 10MB for faster uploads (must be multiple of 256KB)
   const CHUNK_SIZE = 10 * 1024 * 1024
 
+  // Log file details immediately
+  console.log('[LargeFileUpload] File initialized:', {
+    name: file.name,
+    size: file.size,
+    sizeFormatted: formatFileSize(file.size),
+    type: file.type,
+    chunks: Math.ceil(file.size / CHUNK_SIZE)
+  })
+
   const createUploadSession = async () => {
     try {
-      console.log('[LargeFileUpload] Creating upload session for:', file.name)
+      console.log('[LargeFileUpload] Creating upload session for:', {
+        name: file.name,
+        size: file.size,
+        sizeFormatted: formatFileSize(file.size)
+      })
 
       // Add timeout for session creation (30 seconds)
       const controller = new AbortController()
@@ -34,7 +48,7 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
         },
         body: JSON.stringify({
           fileName: file.name,
-          fileSize: file.size,
+          fileSize: file.size, // CRITICAL: This is the size being sent to server
           mimeType: file.type
         }),
         signal: controller.signal
@@ -48,7 +62,10 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
         throw new Error(data.error || 'Failed to create upload session')
       }
 
-      console.log('[LargeFileUpload] Session created:', data.sessionUri)
+      console.log('[LargeFileUpload] Session created:', {
+        sessionUri: data.sessionUri.substring(0, 50) + '...',
+        reportedSize: file.size
+      })
 
       // Check if direct upload is supported (disabled for now due to CORS issues)
       if (data.directUpload && data.corsEnabled && false) { // Temporarily disabled
@@ -73,7 +90,20 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
 
   const uploadChunk = async (sessionUri: string, chunk: Blob, start: number, end: number, total: number, retryCount = 0) => {
     const contentRange = `bytes ${start}-${end - 1}/${total}`
-    console.log(`[LargeFileUpload] Uploading chunk (${useDirectUpload ? 'direct' : 'proxy'}):`, contentRange)
+    const chunkSize = end - start
+    console.log(`[LargeFileUpload] Uploading chunk (${useDirectUpload ? 'direct' : 'proxy'}):`, {
+      range: contentRange,
+      chunkSize: formatFileSize(chunkSize),
+      actualChunkSize: chunk.size
+    })
+
+    // Verify chunk size matches expected
+    if (chunk.size !== chunkSize) {
+      console.error('[LargeFileUpload] CHUNK SIZE MISMATCH!', {
+        expected: chunkSize,
+        actual: chunk.size
+      })
+    }
 
     try {
       // Add timeout for chunk upload (60 seconds per chunk)
@@ -129,11 +159,13 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
           if (match) {
             const uploadedEnd = parseInt(match[1]) + 1
             setUploadedBytes(uploadedEnd)
+            setTotalBytesUploaded(prev => prev + (end - start))
             onProgress((uploadedEnd / total) * 100)
           }
         } else {
           // If no range header, just update based on what we sent
           setUploadedBytes(end)
+          setTotalBytesUploaded(prev => prev + (end - start))
           onProgress((end / total) * 100)
         }
         return { complete: false, response }
@@ -153,6 +185,14 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
           console.log('[LargeFileUpload] Upload complete (no JSON response)')
           data = { id: 'direct-upload', success: true }
         }
+
+        // Final integrity check
+        console.log('[LargeFileUpload] Upload complete - Integrity check:', {
+          originalSize: total,
+          totalUploaded: totalBytesUploaded + (end - start),
+          match: (totalBytesUploaded + (end - start)) === total
+        })
+
         return { complete: true, data: data?.file || data, response }
       }
 
@@ -211,7 +251,12 @@ export function LargeFileUpload({ file, onComplete, onError, onProgress }: Large
 
         if (result.complete) {
           // Upload complete!
-          console.log('[LargeFileUpload] Upload complete:', result.data)
+          console.log('[LargeFileUpload] Upload complete:', {
+            data: result.data,
+            originalFileSize: file.size,
+            totalBytesUploaded: totalBytesUploaded,
+            finalChunkEnd: end
+          })
 
           // Try to confirm upload with our backend
           try {

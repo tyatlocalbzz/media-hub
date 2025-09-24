@@ -62,10 +62,20 @@ export async function POST(request: NextRequest) {
     console.log('[SIGNED-URL] Creating signed URL for:', {
       fileName,
       fileSize,
+      fileSizeFormatted: `${(fileSize / (1024 * 1024)).toFixed(2)} MB`,
       mimeType,
       userId: authResult.user.id,
       resumable
     })
+
+    // Warn if video file seems too small
+    if (mimeType.startsWith('video/') && fileSize < 1024 * 1024) {
+      console.error('[SIGNED-URL] WARNING: Video file suspiciously small:', {
+        fileName,
+        fileSize,
+        mimeType
+      })
+    }
 
     // Generate signed URL based on file size
     let result

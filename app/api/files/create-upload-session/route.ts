@@ -48,9 +48,19 @@ export async function POST(request: NextRequest) {
     console.log('[UPLOAD-SESSION] Creating resumable session for:', {
       fileName,
       fileSize,
+      fileSizeFormatted: `${(fileSize / (1024 * 1024)).toFixed(2)} MB`,
       mimeType,
       userId: authResult.user.id
     })
+
+    // Warn if video file seems too small
+    if (mimeType.startsWith('video/') && fileSize < 1024 * 1024) {
+      console.error('[UPLOAD-SESSION] WARNING: Video file suspiciously small:', {
+        fileName,
+        fileSize,
+        mimeType
+      })
+    }
 
     // Get or create user's folder in shared drive
     const userFolderId = await driveService.getOrCreateUserFolder(

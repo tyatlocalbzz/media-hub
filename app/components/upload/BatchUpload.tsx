@@ -71,12 +71,34 @@ export function BatchUpload({ onUploadComplete, userFolderId }: BatchUploadProps
 
   // Process selected files
   const handleFiles = (files: File[]) => {
+    // CRITICAL: Log exact file sizes immediately
+    console.log('[BatchUpload] Files received:', files.map(f => ({
+      name: f.name,
+      size: f.size,
+      sizeFormatted: formatFileSize(f.size),
+      type: f.type,
+      lastModified: new Date(f.lastModified).toISOString()
+    })))
+
+    // Validate file sizes - warn if suspiciously small
+    files.forEach(file => {
+      // Check if file name suggests video but size is too small
+      const isVideo = file.type.startsWith('video/') ||
+                      file.name.toLowerCase().match(/\.(mp4|mov|avi|mkv|webm)$/)
+
+      if (isVideo && file.size < 1024 * 1024) { // Less than 1MB for a video is suspicious
+        console.error(`[BatchUpload] WARNING: Video file "${file.name}" is suspiciously small: ${formatFileSize(file.size)}`)
+        alert(`Warning: Video file "${file.name}" appears truncated (only ${formatFileSize(file.size)}). Please try selecting the file again.`)
+      }
+    })
+
     const groups = categorizeFiles(files)
 
     console.log('[BatchUpload] Files categorized:', {
       instant: groups.instant.length,
       medium: groups.medium.length,
       manual: groups.manual.length,
+      totalSize: formatFileSize(files.reduce((sum, f) => sum + f.size, 0)),
       files: files.map(f => ({ name: f.name, size: formatFileSize(f.size) }))
     })
 
